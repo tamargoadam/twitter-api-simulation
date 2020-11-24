@@ -4,7 +4,10 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="MessageTypes.fs" />
     <Compile Include="Server.fs" />
+    <Compile Include="User.fs" />
+    <Compile Include="Client.fs" />
     <Compile Include="Main.fs" />
   </ItemGroup>
   <ItemGroup>

@@ -1,7 +1,10 @@
 module Server
 
-open System
+open MessageTypes
 
+open System
+open Akka.Actor
+open Akka.FSharp
 open System.Collections.Generic
 
 let subscribers = new Dictionary<string, string []>()
@@ -9,6 +12,7 @@ let subscribedTo = new Dictionary<string, string []>()
 let tweets = new Dictionary<string, string []>()
 let hashtags = new Dictionary<string, string []>()
 let isConnected = new Dictionary<string, Boolean>()
+
 
 // Register Account
 let makeUserOnline(user) = 
@@ -140,3 +144,23 @@ let getTweets(userName) =
     //         feedTweets <- Array.get (tweets.Item(user)) i :: feedTweets
 
 
+let serverActor (mailbox : Actor<ServerMsg>)=
+    let rec loop () = 
+        actor {
+            let! msg = mailbox.Receive()
+            let sender = mailbox.Sender()
+            // change data to support lookup by actor ref then use that instead of username for places with "sender"
+            match msg with
+            | Login -> makeUserOnline "sender"
+            | Logout -> makeUserOffline "sender"
+            | PostTweet tweet -> processTweet ("sender", tweet)
+            | SubscribeTo user -> addSubsc (user, "sender")
+            | RegisterUser user -> registerUser user // add sender to register by IActorRef as well
+            | ReTweet tweet -> reTweet ("sender", tweet)
+            | GetTweetsSubscribedTo user -> getSubscribedTo user // modify this function to send a msg back to client with corresponding tweets
+            // | GetTweetsByMention user -> FUNCTION TO GET TWEETS BY MENTION HERE
+            | GetTweetsByHashtag hashtag -> getTweetsWithHashtags hashtag // modify this function to send a msg back to client with corresponding tweets
+
+            return! loop()
+        }
+    loop()
