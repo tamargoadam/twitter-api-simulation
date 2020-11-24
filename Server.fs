@@ -3,9 +3,58 @@ module Server
 open MessageTypes
 
 open System
-open Akka.Actor
 open Akka.FSharp
 open System.Collections.Generic
+open System.Data
+
+
+let createUserTable =
+    let userData = new DataTable() 
+    let cols = [|
+        new DataColumn("USERNAME", System.Type.GetType("System.String")); // twitter handle
+        new DataColumn("ADDRESS", System.Type.GetType("Akka.Actor.IActorRef")); // user actor address
+        new DataColumn("CONNECTED", System.Type.GetType("System.Boolean")) // is the user logged in
+        |]
+    cols.[0].Unique <- true
+    userData.Columns.AddRange(cols)
+    userData.PrimaryKey <- [|userData.Columns.["USERNAME"]|]
+    userData
+
+
+let createTweetTable = 
+    let tweetData = new DataTable()
+    let cols = [|
+        new DataColumn("ID", System.Type.GetType("System.Int32")); // unique identifier
+        new DataColumn("TWEET", System.Type.GetType("System.String")); // post contents
+        new DataColumn("USER", System.Type.GetType("System.String")); // poster's username
+        new DataColumn("RT_ID", System.Type.GetType("System.Int32")); // id of origional tweet if rt else null
+        |]
+    cols.[0].ReadOnly <- true;
+    cols.[0].Unique <- true;
+    tweetData.Columns.AddRange(cols)
+    tweetData.PrimaryKey <- [|tweetData.Columns.["ID"]|]
+    tweetData
+
+
+let createHashtagTable = 
+    let hashtagData = new DataTable()
+    let cols = [|
+        new DataColumn("TAG", System.Type.GetType("System.String")); // hashtag contents
+        new DataColumn("TWEET_ID", System.Type.GetType("System.Int32")); // id of post containing tag
+        |]
+    hashtagData.Columns.AddRange(cols)
+    hashtagData
+
+
+let createMentionTable = 
+    let mentionData = new DataTable()
+    let cols = [|
+        new DataColumn("MENTIONED_ID", System.Type.GetType("System.String")); // id of mentioned user
+        new DataColumn("TWEET_ID", System.Type.GetType("System.Int32")); // id of post containing mention
+        |]
+    mentionData.Columns.AddRange(cols)
+    mentionData
+
 
 let subscribers = new Dictionary<string, string []>()
 let subscribedTo = new Dictionary<string, string []>()

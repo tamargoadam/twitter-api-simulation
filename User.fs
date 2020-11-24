@@ -2,10 +2,7 @@ module User
 
 open MessageTypes
 
-open System
-open Akka.Actor
 open Akka.FSharp
-open System.Collections.Generic
 
 
 let twitterUser (numSubscribers: int) (mailbox : Actor<UserMsg>) = 
