@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="MessageTypes.fs" />
+    <Compile Include="TwitterData.fs" />
     <Compile Include="Server.fs" />
     <Compile Include="User.fs" />
     <Compile Include="Client.fs" />

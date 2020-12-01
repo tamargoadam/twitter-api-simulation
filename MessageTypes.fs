@@ -3,12 +3,12 @@ module MessageTypes
 
 // server message types
 type ServerMsg = 
-    | Login
-    | Logout
-    | PostTweet of string
-    | SubscribeTo of string
+    | Login of string
+    | Logout of string
+    | PostTweet of string * string
+    | SubscribeTo of string * string
     | RegisterUser of string
-    | ReTweet of string // may want to change to id
+    | ReTweet of string * string * int
     | GetTweetsSubscribedTo of string
     | GetTweetsByMention of string
     | GetTweetsByHashtag of string

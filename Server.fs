@@ -1,92 +1,42 @@
 module Server
 
 open MessageTypes
+open TwitterData
 
-open System
 open Akka.FSharp
-open System.Collections.Generic
+open Akka.Actor
 open System.Data
 
-
-let createUserTable =
-    let userData = new DataTable() 
-    let cols = [|
-        new DataColumn("USERNAME", System.Type.GetType("System.String")); // twitter handle
-        new DataColumn("ADDRESS", System.Type.GetType("Akka.Actor.IActorRef")); // user actor address
-        new DataColumn("CONNECTED", System.Type.GetType("System.Boolean")) // is the user logged in
-        |]
-    cols.[0].Unique <- true
-    userData.Columns.AddRange(cols)
-    userData.PrimaryKey <- [|userData.Columns.["USERNAME"]|]
-    userData
+let twitterData = createTwitterDataSet
 
 
-let createTweetTable = 
-    let tweetData = new DataTable()
-    let cols = [|
-        new DataColumn("ID", System.Type.GetType("System.Int32")); // unique identifier
-        new DataColumn("TWEET", System.Type.GetType("System.String")); // post contents
-        new DataColumn("USER", System.Type.GetType("System.String")); // poster's username
-        new DataColumn("RT_ID", System.Type.GetType("System.Int32")); // id of origional tweet if rt else null
-        |]
-    cols.[0].ReadOnly <- true;
-    cols.[0].Unique <- true;
-    tweetData.Columns.AddRange(cols)
-    tweetData.PrimaryKey <- [|tweetData.Columns.["ID"]|]
-    tweetData
+// Data access functions
+
+let makeUserOnline (userName: string) = 
+    let expression = "USERNAME = '" + userName + "'"
+    let userRow = twitterData.Tables.["USERS"].Select(expression)
+    if userRow.Length > 0 then
+        userRow.[0].["CONNECTED"] <- true
 
 
-let createHashtagTable = 
-    let hashtagData = new DataTable()
-    let cols = [|
-        new DataColumn("TAG", System.Type.GetType("System.String")); // hashtag contents
-        new DataColumn("TWEET_ID", System.Type.GetType("System.Int32")); // id of post containing tag
-        |]
-    hashtagData.Columns.AddRange(cols)
-    hashtagData
+
+let makeUserOffline (userName: string) = 
+    let expression = "USERNAME = '" + userName + "'"
+    let userRow = twitterData.Tables.["USERS"].Select(expression)
+    if userRow.Length > 0 then
+        userRow.[0].["CONNECTED"] <- false
 
 
-let createMentionTable = 
-    let mentionData = new DataTable()
-    let cols = [|
-        new DataColumn("MENTIONED_ID", System.Type.GetType("System.String")); // id of mentioned user
-        new DataColumn("TWEET_ID", System.Type.GetType("System.Int32")); // id of post containing mention
-        |]
-    mentionData.Columns.AddRange(cols)
-    mentionData
+let registerUser(userName: string, userAddress: IActorRef) = 
+    let row = twitterData.Tables.["USERS"].NewRow()
+    row.["USERNAME"] <- userName
+    row.["ADDRESS"] <- userAddress
+    row.["CONNECTED"] <- false
+
+    twitterData.Tables.["USERS"].Rows.Add(row)
 
 
-let subscribers = new Dictionary<string, string []>()
-let subscribedTo = new Dictionary<string, string []>()
-let tweets = new Dictionary<string, string []>()
-let hashtags = new Dictionary<string, string []>()
-let isConnected = new Dictionary<string, Boolean>()
-
-
-// Register Account
-let makeUserOnline(user) = 
-    isConnected.Remove(user) |> ignore
-    isConnected.Add(user, true)
-
-let makeUserOffline(user) = 
-    isConnected.Remove(user) |> ignore
-    isConnected.Add(user, false)
-
-let returnStatus(userName) = 
-    isConnected.Item(userName)
-
-
-let registerUser(userName) = 
-    if subscribers.Item(userName) <> Array.empty then
-        subscribers.Add(userName, Array.empty)
-    
-    subscribedTo.Add(userName, Array.empty)
-    tweets.Add(userName, Array.empty)
-    makeUserOnline(userName)
-
-
-// Send Tweet
-let addHashtags input =
+let addHashtags(input, id) =
     let mutable i = 0
     let l = String.length input
         
@@ -98,17 +48,17 @@ let addHashtags input =
 
             let hash = input.[i+1..k-1]
 
-            // Add (hash, tweet) in hashtags dictionary
-            let mutable pastTweets = hashtags.Item(hash) |> Array.toList
-            pastTweets <- input :: pastTweets
-            hashtags.Remove(hash) |> ignore
-            hashtags.Add(hash, pastTweets |> List.toArray)
+            let row = createHashtagTable.NewRow()
+            row.["TAG"] <- hash
+            row.["TWEET_ID"] <- id
+
+            createHashtagTable.Rows.Add(row)
 
             i <- k-1
         i <- i+1
 
 
-let addMentions input = 
+let addMentions(input, id) = 
     let mutable i = 0
     let l = String.length input
         
@@ -122,76 +72,81 @@ let addMentions input =
 
             let user = input.[i+1..k-1]
 
-            // Add (hash, tweet) in hashtags dictionary
-            let mutable pastTweets = tweets.Item(user) |> Array.toList
-            pastTweets <- input :: pastTweets
-            tweets.Remove(user) |> ignore
-            tweets.Add(user, pastTweets |> List.toArray)
+            let row = twitterData.Tables.["HASHTAGS"].NewRow()
+            row.["MENTIONED_NAME"] <- user
+            row.["TWEET_ID"] <- id
+
+            twitterData.Tables.["HASHTAGS"].Rows.Add(row)
 
             i <- k-1
         i <- i+1
 
 
-let processTweet(userName, tweet) =
-    // Add a tweet to the user's database
-    let mutable pastTweets = tweets.Item(userName) |> Array.toList
-    pastTweets <- tweet :: pastTweets
-    tweets.Remove(userName) |> ignore
-    tweets.Add(userName, pastTweets |> List.toArray)
+let mutable tweetId = 1
 
-    // Add (hashtag, tweet) in hashtags dictionary
-    addHashtags tweet
+let processTweet(user, tweet, rtId) =
+    let row = twitterData.Tables.["TWEETS"].NewRow()
+    row.["ID"] <- tweetId
+    row.["TWEET"] <- tweet
+    row.["USER"] <- user
+    row.["RT_ID"] <- rtId
 
-    // Add (mention, tweet) in tweets dictionary
-    addMentions tweet
+    twitterData.Tables.["TWEETS"].Rows.Add(row)
 
-
-// Subscribe to user's tweets
-let addSubsc(user1, user2) = 
-    let mutable pastUsers = subscribers.Item(user1) |> Array.toList
-    pastUsers <- user2 :: pastUsers
-    tweets.Remove(user1) |> ignore
-    tweets.Add(user1, pastUsers |> List.toArray)
-
-let addSubscTo(user2, user1) = 
-    let mutable pastUsers = tweets.Item(user2) |> Array.toList
-    pastUsers <- user1 :: pastUsers
-    tweets.Remove(user2) |> ignore
-    tweets.Add(user2, pastUsers |> List.toArray)
-
-let addSubscriber(userName1, userName2) = 
-    // user2 subscribes to user1
-    addSubsc(userName1, userName2)
-    addSubscTo(userName2, userName1)
+    // NEED TO WORK ON SENDING TWEETS TO ALL SUBSCRIBERS.
+    addHashtags(tweet, tweetId)
+    addMentions(tweet, tweetId)
+    tweetId <- tweetId+1
 
 
-// Re-tweets (so that your subscribers get an interesting tweet you got by other means)
-let reTweet(user, tweet) = 
-    processTweet(user, tweet)
+// subscriber subs to user
+let addSubsc(subscriber, user) = 
+    let row = twitterData.Tables.["SUBSCRIBERS"].NewRow()
+    row.["USER"] <- user
+    row.["SUBSCRIBER"] <- subscriber
 
-// Allow querying tweets subscribed to, tweets with specific hashtags, tweets in which the user is mentioned (my mentions)
-let getTweetsWithHashtags(hash) = 
-    hashtags.Item(hash)
-
-let getSubscribers(userName) = 
-    subscribers.Item(userName)
-
-let getSubscribedTo(userName) = 
-    subscribedTo.Item(userName)
+    twitterData.Tables.["SUBSCRIBERS"].Rows.Add(row)
 
 
-let getTweets(userName) = 
-    tweets.Item(userName)
- 
-// If the user is connected, deliver the above types of tweets live (without querying)
-// let getUserFeed(user) = 
-    // if isConnected.Item(user) then
-    //     let mutable feedTweets : string list = []
-    //     let length = tweets.Item(user).Length
+let getTweetsWithHashtags(tag) = 
+    let tagExpression = "TAG = '" + tag + "'"
+    let tagRows = twitterData.Tables.["HASHTAGS"].Select(tagExpression)
+    let mutable tweetExpression = ""
+    for row in tagRows do
+        if tweetExpression.Length > 0 then
+            tweetExpression <- " OR "
+        tweetExpression <- "ID = '" + row.["TWEET_ID"].ToString() + "'"
+    let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
+    let getTweetsFromRows = fun (x:DataRow) -> x.["TWEET"]
+    tweetRows |> Array.map getTweetsFromRows
+    
 
-    //     for i in 0..length-1 do
-    //         feedTweets <- Array.get (tweets.Item(user)) i :: feedTweets
 
+let getSubscribedTo(user) = 
+    let mutable tweetList : obj list = []
+    let dv = new DataView(createTweetTable)
+
+    for drv in dv do
+        if drv.["USER"] = user then
+            tweetList <- drv.["TWEET"] :: tweetList
+
+    let tweetArray = tweetList |> List.toArray
+    tweetArray
+
+let getMentionedTweet(user) = 
+    let mentionExpression = "MENTIONED_NAME = '" + user + "'"
+    let mentionRows = twitterData.Tables.["MENTIONS"].Select(mentionExpression)
+    let mutable tweetExpression = ""
+    for row in mentionRows do
+        if tweetExpression.Length > 0 then
+            tweetExpression <- " OR "
+        tweetExpression <- "ID = '" + row.["TWEET_ID"].ToString() + "'"
+    let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
+    let getTweetsFromRows = fun (x:DataRow) -> x.["TWEET"]
+    tweetRows |> Array.map getTweetsFromRows
+
+
+// Server actor to delegate functionality
 
 let serverActor (mailbox : Actor<ServerMsg>)=
     let rec loop () = 
@@ -200,15 +155,15 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             let sender = mailbox.Sender()
             // change data to support lookup by actor ref then use that instead of username for places with "sender"
             match msg with
-            | Login -> makeUserOnline "sender"
-            | Logout -> makeUserOffline "sender"
-            | PostTweet tweet -> processTweet ("sender", tweet)
-            | SubscribeTo user -> addSubsc (user, "sender")
-            | RegisterUser user -> registerUser user // add sender to register by IActorRef as well
-            | ReTweet tweet -> reTweet ("sender", tweet)
-            | GetTweetsSubscribedTo user -> getSubscribedTo user // modify this function to send a msg back to client with corresponding tweets
-            // | GetTweetsByMention user -> FUNCTION TO GET TWEETS BY MENTION HERE
-            | GetTweetsByHashtag hashtag -> getTweetsWithHashtags hashtag // modify this function to send a msg back to client with corresponding tweets
+            | Login user -> makeUserOnline(user)
+            | Logout user -> makeUserOffline(user)
+            | PostTweet (user, tweet) -> processTweet (user, tweet, -1)
+            | SubscribeTo (user, subTo) -> addSubsc (user, subTo)  
+            | RegisterUser user -> registerUser(user, sender)
+            | ReTweet (user, tweet, origId) -> processTweet (user, tweet, origId)
+            | GetTweetsSubscribedTo user -> getSubscribedTo user // modify this function to send a msg back to client with corresponding tweets //Done
+            | GetTweetsByMention user -> getMentionedTweet user   //FUNCTION TO GET TWEETS BY MENTION HERE  //Done
+            | GetTweetsByHashtag hashtag -> getTweetsWithHashtags hashtag // modify this function to send a msg back to client with corresponding tweets //Done
 
             return! loop()
         }
