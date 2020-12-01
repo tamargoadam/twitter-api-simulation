@@ -3,9 +3,11 @@ module User
 open MessageTypes
 
 open Akka.FSharp
+open Akka.Actor
 
 
-let twitterUser (numSubscribers: int) (mailbox : Actor<UserMsg>) = 
+let twitterUser (numSubscribers: int) (serverAddr: IActorRef) (mailbox : Actor<UserMsg>) = 
+    
     let rec loop () = 
         actor {
             let! msg = mailbox.Receive()

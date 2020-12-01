@@ -22,5 +22,5 @@ type UserMsg =
 
 // client supervisor message types
 type ClientMsg =
-    | StartSimulation
+    | StartSimulation of Akka.Actor.IActorRef
     | RecieveStatistics of int * int * int // change to whatever types neccessary for decided upon statistics

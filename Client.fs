@@ -14,14 +14,14 @@ let system = ActorSystem.Create("FSharp")
 let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
     let mutable numDone = 0
     let mutable terminateAddress = mailbox.Context.Parent
-    let mutable userDict = new Dictionary<string, IActorRef>()
+    let mutable userDict = new Dictionary<string, IActorRef>() // username -> ref
 
 
-    let startSim (termAdd: IActorRef)=
-        terminateAddress <- termAdd
+    let startSim (termAddr: IActorRef, serverAddr)=
+        terminateAddress <- termAddr
         let zipf = Zipf(1.5, numUsers)
         for i in 0..numUsers-1 do
-            userDict.Add("@user"+i.ToString(), spawn mailbox ("worker"+i.ToString()) (twitterUser (zipf.Sample()))) |> ignore
+            userDict.Add("user"+i.ToString(), spawn mailbox ("worker"+i.ToString()) (twitterUser (zipf.Sample()) serverAddr)) |> ignore
 
 
     let processStatistics (stats: int*int*int)=
@@ -36,7 +36,7 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
             let! msg = mailbox.Receive()
             let sender = mailbox.Sender()
             match msg with
-                | StartSimulation -> startSim sender
+                | StartSimulation server -> startSim sender server
                 | RecieveStatistics (s1, s2, s3) -> processStatistics (s1, s2, s3) // change to vars for decided upon stats
             return! loop()
         }

@@ -19,5 +19,5 @@ let main argv =
         let numUsers: int = int argv.[0]
         let client = spawn system ("client") (clientSupervisor numUsers)
         let server = spawn system ("server") serverActor
-        let res = client <? ClientMsg.StartSimulation |> Async.RunSynchronously
+        let res = client <? ClientMsg.StartSimulation server |> Async.RunSynchronously
         0
