@@ -16,8 +16,8 @@ type ServerMsg =
 
 // user message types
 type UserMsg = 
-    | ReceiveTweet of string
-    | ReceiveTweets of string[]
+    | ReceiveTweet of int * string * string // id, tweet, user
+    | ReceiveTweets of (int * string * string)[]
 
 
 // client supervisor message types
