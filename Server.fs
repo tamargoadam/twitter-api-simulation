@@ -10,17 +10,29 @@ open System.Data
 
 let twitterData = createTwitterDataSet
 
+let rand = System.Random()
+
+let swap (a: _[]) x y =
+    let tmp = a.[x]
+    a.[x] <- a.[y]
+    a.[y] <- tmp
+
+// shuffle an array (in-place)
+let shuffle a =
+    Array.iteri (fun i _ -> swap a i (rand.Next(i, Array.length a))) a
+
 
 // Server actor to handle requests
 let serverActor (mailbox : Actor<ServerMsg>)=
-    let rand = System.Random()
-    
+    let mutable numTweetsProcessed = 0
+
     // Data access functions
-    let makeUserOnline (userName: string) = 
+    let makeUserOnline (userName: string, addr: IActorRef) = 
         let expression = "USERNAME = '" + userName + "'"
         let userRow = twitterData.Tables.["USERS"].Select(expression)
         if userRow.Length > 0 then
             userRow.[0].["CONNECTED"] <- true
+            userRow.[0].["ADDRESS"] <- addr
 
 
     let makeUserOffline (userName: string) = 
@@ -30,10 +42,9 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             userRow.[0].["CONNECTED"] <- false
 
 
-    let registerUser(userName: string, userAddress: IActorRef) = 
+    let registerUser (userName: string) = 
         let row = twitterData.Tables.["USERS"].NewRow()
         row.["USERNAME"] <- userName
-        row.["ADDRESS"] <- userAddress
         row.["CONNECTED"] <- false
 
         twitterData.Tables.["USERS"].Rows.Add(row)
@@ -88,23 +99,28 @@ let serverActor (mailbox : Actor<ServerMsg>)=
     let sendToSubs(id: int, tweet: string, user: string) =
         let subExpression = "USER = '" + user + "'"
         let subRows = twitterData.Tables.["SUBSCRIBERS"].Select(subExpression)
-        let mutable userExpression = ""
+        let mutable userRows = [||]
         for row in subRows do
-            if userExpression.Length > 0 then
-                userExpression <- userExpression + " OR "
-            userExpression <- userExpression + "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
-        let userRows =  twitterData.Tables.["USERS"].Select(userExpression)
+            let userExpression =  "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
+            userRows <- Array.append userRows (twitterData.Tables.["USERS"].Select(userExpression))
         for row in userRows do
             (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet(id, tweet, user)
 
 
     let processTweet(rtId: int, tweet: string, user: string) =
-        let tweetId = rand.Next(System.Int32.MaxValue)
+        // get unique id
+        let mutable tweetId = rand.Next(System.Int32.MaxValue)
+        while twitterData.Tables.["TWEETS"].Select("ID = '" + tweetId.ToString() + "'").Length > 0 do
+            tweetId <- rand.Next(System.Int32.MaxValue)
+
         let row = twitterData.Tables.["TWEETS"].NewRow()
         row.["ID"] <- tweetId
         row.["TWEET"] <- tweet
         row.["USER"] <- user
         row.["RT_ID"] <- rtId
+
+        if rtId = -1 && not (tweet.StartsWith("RT: ")) then
+            row.["TWEET"] <- "RT: " + tweet
 
         twitterData.Tables.["TWEETS"].Rows.Add(row)
 
@@ -112,7 +128,9 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         addMentions(tweet, tweetId)
 
         sendToSubs(tweetId, tweet, user)
-        System.Console.WriteLine("({0})  {1}: {2}", tweetId, user, tweet)
+        numTweetsProcessed <- numTweetsProcessed + 1
+        // System.Console.WriteLine("{0}", numTweetsProcessed)
+        // System.Console.WriteLine("({0})  {1}: {2}", tweetId, user, tweet)
 
 
     let addSubsc(subscriber: string, user: string) = 
@@ -164,24 +182,27 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
     // TODO: NEED TO FIND A WAY TO SETUP NUM SUBS AT BEGINING
     let setInitialSubs (user: string) (numSubs: int) = 
-        let allUsers = twitterData.Tables.["USERS"].Select()
-        for i in 0.. min (allUsers.Length-1) numSubs do
+        let mutable allUsers = twitterData.Tables.["USERS"].Select()
+        shuffle allUsers
+        for i in 0..numSubs-1 do
             let sub = allUsers.[i].["USERNAME"]
             if twitterData.Tables.["SUBSCRIBERS"].Select("USER = '" + user + "' AND SUBSCRIBER = '" + sub.ToString() + "'").Length = 0 then
                 addSubsc(sub.ToString(), user)
+
 
     // Actor loop
     let rec loop () = 
         actor {
             let! msg = mailbox.Receive()
             let sender = mailbox.Sender()
+            // System.Console.WriteLine("{0}", msg)
             // change data to support lookup by actor ref then use that instead of username for places with "sender"
             match msg with
-            | Login user -> makeUserOnline(user)
-            | Logout user -> makeUserOffline(user)
+            | Login user -> makeUserOnline (user, sender)
+            | Logout user -> makeUserOffline user
             | PostTweet (tweet, user) -> processTweet (-1, tweet, user)
             | SubscribeTo (subTo, user) -> addSubsc (user, subTo)  
-            | RegisterUser user -> registerUser(user, sender)
+            | RegisterUser user -> registerUser user
             | ReTweet (origId, tweet, user) -> processTweet (origId, tweet, user)
             | GetTweetsSubscribedTo user -> getSubscribedTo (user, sender)
             | GetTweetsByMention user -> getMentionedTweet (user, sender)
