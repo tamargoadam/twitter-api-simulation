@@ -13,15 +13,19 @@ type ServerMsg =
     | GetTweetsByMention of string
     | GetTweetsByHashtag of string
     | SimulateSetInitialSubs of string * int
-
+    | SimulateSetExpectedTweets of int
 
 // user message types
 type UserMsg = 
     | ReceiveTweet of int * string * string // id, tweet, user
-    | ReceiveTweets of (int * string * string)[]
 
 
 // client supervisor message types
 type ClientMsg =
     | StartSimulation of Akka.Actor.IActorRef
-    | RecieveStatistics of int * int * int // change to whatever types neccessary for decided upon statistics
+    | RecieveStatistics of float
+
+
+// user message types
+type MainMsg = 
+    | QueryTweets of (int * string * string)[]

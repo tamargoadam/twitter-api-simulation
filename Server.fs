@@ -25,6 +25,8 @@ let shuffle a =
 // Server actor to handle requests
 let serverActor (mailbox : Actor<ServerMsg>)=
     let mutable numTweetsProcessed = 0
+    let mutable totalTweets = System.Int32.MaxValue
+    let mutable clientAddr = mailbox.Context.Parent
 
     // Data access functions
     let makeUserOnline (userName: string, addr: IActorRef) = 
@@ -129,8 +131,10 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
         sendToSubs(tweetId, tweet, user)
         numTweetsProcessed <- numTweetsProcessed + 1
-        // System.Console.WriteLine("{0}", numTweetsProcessed)
+        // System.Console.WriteLine("{0}/{1}", numTweetsProcessed, totalTweets)
         // System.Console.WriteLine("({0})  {1}: {2}", tweetId, user, tweet)
+        if numTweetsProcessed >= totalTweets then
+            clientAddr <! RecieveStatistics 0.0
 
 
     let addSubsc(subscriber: string, user: string) = 
@@ -145,42 +149,50 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let tagExpression = "TAG = '" + tag + "'"
         let tagRows = twitterData.Tables.["HASHTAGS"].Select(tagExpression)
         let mutable tweetExpression = ""
-        for row in tagRows do
+        for row in tagRows.[..10] do
             if tweetExpression.Length > 0 then
                 tweetExpression <- tweetExpression + " OR "
             tweetExpression <- tweetExpression + "ID = '" + row.["TWEET_ID"].ToString() + "'"
-        let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
-        let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
-        addr <! ReceiveTweets(tweetRows |> Array.map getTweetsFromRows)
+        if tweetExpression = "" then 
+            addr <! QueryTweets(Array.empty)
+        else
+            let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
+            let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
+            addr <! QueryTweets(tweetRows |> Array.map getTweetsFromRows)
         
 
     let getSubscribedTo(subscriber: string, addr: IActorRef) = 
         let subExpression = "SUBSCRIBER = '" + subscriber + "'"
         let subRows = twitterData.Tables.["SUBSCRIBERS"].Select(subExpression)
         let mutable tweetExpression = ""
-        for row in subRows do
+        for row in subRows.[..10] do
             if tweetExpression.Length > 0 then
                 tweetExpression <- tweetExpression + " OR "
             tweetExpression <- tweetExpression + "USER = '" + row.["USER"].ToString() + "'"
-        let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
-        let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
-        addr <! ReceiveTweets(tweetRows |> Array.map getTweetsFromRows)
+        if tweetExpression = "" then 
+            addr <! QueryTweets(Array.empty)
+        else
+            let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
+            let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
+            addr <! QueryTweets(tweetRows |> Array.map getTweetsFromRows)
 
 
     let getMentionedTweet(user: string, addr: IActorRef) = 
         let mentionExpression = "MENTIONED_NAME = '" + user + "'"
         let mentionRows = twitterData.Tables.["MENTIONS"].Select(mentionExpression)
         let mutable tweetExpression = ""
-        for row in mentionRows do
+        for row in mentionRows.[..10] do
             if tweetExpression.Length > 0 then
                 tweetExpression <- tweetExpression + " OR "
             tweetExpression <- tweetExpression + "ID = '" + row.["TWEET_ID"].ToString() + "'"
-        let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
-        let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
-        addr <! ReceiveTweets(tweetRows |> Array.map getTweetsFromRows)
+        if tweetExpression = "" then 
+            addr <! QueryTweets(Array.empty)
+        else
+            let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
+            let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
+            addr <! QueryTweets(tweetRows |> Array.map getTweetsFromRows)
 
 
-    // TODO: NEED TO FIND A WAY TO SETUP NUM SUBS AT BEGINING
     let setInitialSubs (user: string) (numSubs: int) = 
         let mutable allUsers = twitterData.Tables.["USERS"].Select()
         shuffle allUsers
@@ -188,6 +200,14 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             let sub = allUsers.[i].["USERNAME"]
             if twitterData.Tables.["SUBSCRIBERS"].Select("USER = '" + user + "' AND SUBSCRIBER = '" + sub.ToString() + "'").Length = 0 then
                 addSubsc(sub.ToString(), user)
+
+
+    let setTotalTweets (num: int) (client: IActorRef) =
+        totalTweets <- num
+        // System.Console.WriteLine("Total Tweets: {0}", totalTweets)
+        clientAddr <- client
+        if numTweetsProcessed >= totalTweets then
+            client <! RecieveStatistics 0.0
 
 
     // Actor loop
@@ -208,6 +228,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             | GetTweetsByMention user -> getMentionedTweet (user, sender)
             | GetTweetsByHashtag hashtag -> getTweetsWithHashtags (hashtag, sender)
             | SimulateSetInitialSubs (numSubs, user) -> setInitialSubs numSubs user
+            | SimulateSetExpectedTweets numTweets -> setTotalTweets numTweets sender
 
             return! loop()
         }

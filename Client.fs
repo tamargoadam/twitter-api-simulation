@@ -12,9 +12,9 @@ open MathNet.Numerics.Distributions
 let system = ActorSystem.Create("FSharp")
 
 let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
-    let mutable numDone = 0
     let mutable terminateAddress = mailbox.Context.Parent
     let mutable userList = [] // username -> numSubs
+    let mutable totalTweets = 0
 
     let startSim (termAddr: IActorRef) (serverAddr: IActorRef)=
         terminateAddress <- termAddr
@@ -28,15 +28,16 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
         // spawn user actors
         for i in 0..userList.Length-1 do
             serverAddr <! SimulateSetInitialSubs ((fst userList.[i]), (snd userList.[i]))
-            spawn mailbox ("worker"+i.ToString()) (twitterUser (fst userList.[i]) numUsers (snd userList.[i]) serverAddr) |> ignore
-            
+            let numTweets = (max 100 (snd userList.[i]) )/10
+            totalTweets <- totalTweets + numTweets
+            serverAddr <! SimulateSetExpectedTweets totalTweets
+            spawn mailbox ("worker"+i.ToString()) (twitterUser (fst userList.[i]) numUsers (snd userList.[i]) numTweets serverAddr) |> ignore
 
 
-    let processStatistics (stats: int*int*int)=
+
+    let processStatistics (stats: float)=
         // process stats here
-        numDone <- numDone + 1
-        if numDone >= numUsers then
-            Console.WriteLine("Some info printed here...")
+        terminateAddress <! "done"
     
 
     let rec loop () = 
@@ -45,7 +46,7 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
             let sender = mailbox.Sender()
             match msg with
                 | StartSimulation server -> startSim sender server
-                | RecieveStatistics (s1, s2, s3) -> processStatistics (s1, s2, s3) // change to vars for decided upon stats
+                | RecieveStatistics stat -> processStatistics stat 
             return! loop()
         }
     loop()
