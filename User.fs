@@ -10,10 +10,7 @@ open Akka.Actor
 let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (serverAddr: IActorRef) (mailbox : Actor<UserMsg>) = 
     let mutable isLoggedIn = false
     let rand = Random()
-    // user posts proportional to subs-users ratio
-    let subToUseRatio = (float numSubscribers)/(float numUsers)
-    let postTimer = new Timers.Timer(250.0/subToUseRatio)
-    let postEvent = Async.AwaitEvent (postTimer.Elapsed) |> Async.Ignore
+    let subToUseRatio = (float (min numSubscribers 1))/(float numUsers)
 
 
     let postTweet (connected: bool) =
@@ -27,12 +24,12 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (server
             if rand.NextDouble() <= 0.49 then
                 tweetContent <- tweetContent + " @user" + rand.Next(numUsers).ToString()
 
-            Console.WriteLine("user: {0}", tweetContent)
             serverAddr <! PostTweet (tweetContent, username)
 
 
-    let viewTweet (id: int) (tweet: string) =
+    let viewTweet (id: int) (tweet: string) (user: string)=
         // retweet viewed tweet 13% of the time
+        System.Console.WriteLine("({0})  {1}: {2}", id, user, tweet)
         if rand.NextDouble() <= 0.13 then
             serverAddr <! ReTweet (id, tweet, username)
     
@@ -48,16 +45,25 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (server
     // register this user with the server
     serverAddr <! RegisterUser username
     serverAddr <! Login username
-    isLoggedIn <- not isLoggedIn
+    isLoggedIn <- true
+    
+    // set initial subscribers for simulation
+    serverAddr <! SimulateSetInitialSubs (username, numSubscribers)
         
     let rec loop () = 
-        postTweet isLoggedIn
+        Akka.Dispatch.ActorTaskScheduler.RunTask(fun() ->
+            async {
+                do! Async.Sleep (int (250.0/subToUseRatio)) // user tweets proportional to subs-users ratio
+                postTweet isLoggedIn
+            } |> Async.StartAsTask :> Threading.Tasks.Task)
+
         actor {
+
             let! msg = mailbox.Receive()
             let sender = mailbox.Sender()
             // run functions to record measurments that can be sent back to the client supervisor
             match msg with
-                | ReceiveTweet (id, tweet, user) -> viewTweet id tweet
+                | ReceiveTweet (id, tweet, user) -> viewTweet id tweet user
                 | ReceiveTweets tweets -> ignore
             return! loop()
         }

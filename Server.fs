@@ -13,6 +13,8 @@ let twitterData = createTwitterDataSet
 
 // Server actor to handle requests
 let serverActor (mailbox : Actor<ServerMsg>)=
+    let rand = System.Random()
+    
     // Data access functions
     let makeUserOnline (userName: string) = 
         let expression = "USERNAME = '" + userName + "'"
@@ -73,11 +75,11 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
                 let user = input.[i+1..k-1]
 
-                let row = twitterData.Tables.["HASHTAGS"].NewRow()
+                let row = twitterData.Tables.["MENTIONS"].NewRow()
                 row.["MENTIONED_NAME"] <- user
                 row.["TWEET_ID"] <- id
 
-                twitterData.Tables.["HASHTAGS"].Rows.Add(row)
+                twitterData.Tables.["MENTIONS"].Rows.Add(row)
 
                 i <- k-1
             i <- i+1
@@ -91,14 +93,13 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             if userExpression.Length > 0 then
                 userExpression <- userExpression + " OR "
             userExpression <- userExpression + "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
-        let userRows =  twitterData.Tables.["TWEETS"].Select(userExpression)
+        let userRows =  twitterData.Tables.["USERS"].Select(userExpression)
         for row in userRows do
             (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet(id, tweet, user)
 
 
-    let mutable tweetId = 1
-
     let processTweet(rtId: int, tweet: string, user: string) =
+        let tweetId = rand.Next(System.Int32.MaxValue)
         let row = twitterData.Tables.["TWEETS"].NewRow()
         row.["ID"] <- tweetId
         row.["TWEET"] <- tweet
@@ -112,7 +113,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
         sendToSubs(tweetId, tweet, user)
         System.Console.WriteLine("({0})  {1}: {2}", tweetId, user, tweet)
-        tweetId <- tweetId+1
 
 
     let addSubsc(subscriber: string, user: string) = 
@@ -164,7 +164,11 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
     // TODO: NEED TO FIND A WAY TO SETUP NUM SUBS AT BEGINING
     let setInitialSubs (user: string) (numSubs: int) = 
-        "dkslfj"
+        let allUsers = twitterData.Tables.["USERS"].Select()
+        for i in 0.. min (allUsers.Length-1) numSubs do
+            let sub = allUsers.[i].["USERNAME"]
+            if twitterData.Tables.["SUBSCRIBERS"].Select("USER = '" + user + "' AND SUBSCRIBER = '" + sub.ToString() + "'").Length = 0 then
+                addSubsc(sub.ToString(), user)
 
     // Actor loop
     let rec loop () = 
@@ -182,7 +186,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             | GetTweetsSubscribedTo user -> getSubscribedTo (user, sender)
             | GetTweetsByMention user -> getMentionedTweet (user, sender)
             | GetTweetsByHashtag hashtag -> getTweetsWithHashtags (hashtag, sender)
-            | SimulateSetInitialSubs (numSubs, user) -> 
+            | SimulateSetInitialSubs (numSubs, user) -> setInitialSubs numSubs user
 
             return! loop()
         }

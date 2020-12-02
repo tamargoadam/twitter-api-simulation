@@ -74,14 +74,14 @@ let createTwitterDataSet =
 
     // Define realations b/t tables
     let rel1 = DataRelation("TWEET_USER", twitterData.Tables.["USERS"].Columns.["USERNAME"], twitterData.Tables.["TWEETS"].Columns.["USER"])
-    let rel2 = DataRelation("RT_TWEET", twitterData.Tables.["TWEETS"].Columns.["ID"], twitterData.Tables.["TWEETS"].Columns.["RT_ID"])
+    // let rel2 = DataRelation("RT_TWEET", twitterData.Tables.["TWEETS"].Columns.["ID"], twitterData.Tables.["TWEETS"].Columns.["RT_ID"])
     let rel3 = DataRelation("TAG_TWEET", twitterData.Tables.["TWEETS"].Columns.["ID"], twitterData.Tables.["HASHTAGS"].Columns.["TWEET_ID"])
     let rel4 = DataRelation("MENTION_TWEET", twitterData.Tables.["TWEETS"].Columns.["ID"], twitterData.Tables.["MENTIONS"].Columns.["TWEET_ID"])
     let rel5 = DataRelation("MENTION_USER", twitterData.Tables.["USERS"].Columns.["USERNAME"], twitterData.Tables.["MENTIONS"].Columns.["MENTIONED_NAME"])
     let rel6 = DataRelation("SUBED_USER", twitterData.Tables.["USERS"].Columns.["USERNAME"], twitterData.Tables.["SUBSCRIBERS"].Columns.["USER"])
     let rel7 = DataRelation("SUBER_USER", twitterData.Tables.["USERS"].Columns.["USERNAME"], twitterData.Tables.["SUBSCRIBERS"].Columns.["SUBSCRIBER"])
     twitterData.Tables.["TWEETS"].ParentRelations.Add(rel1)
-    twitterData.Tables.["TWEETS"].ParentRelations.Add(rel2)
+    // twitterData.Tables.["TWEETS"].ParentRelations.Add(rel2)
     twitterData.Tables.["HASHTAGS"].ParentRelations.Add(rel3)
     twitterData.Tables.["MENTIONS"].ParentRelations.Add(rel4)
     twitterData.Tables.["MENTIONS"].ParentRelations.Add(rel5)
