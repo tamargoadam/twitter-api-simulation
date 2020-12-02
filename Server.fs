@@ -89,11 +89,12 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let mutable userExpression = ""
         for row in subRows do
             if userExpression.Length > 0 then
-                userExpression <- " OR "
-            userExpression <- "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "'"
+                userExpression <- userExpression + " OR "
+            userExpression <- userExpression + "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
         let userRows =  twitterData.Tables.["TWEETS"].Select(userExpression)
         for row in userRows do
             (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet(id, tweet, user)
+
 
     let mutable tweetId = 1
 
@@ -106,9 +107,11 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
         twitterData.Tables.["TWEETS"].Rows.Add(row)
 
-        // NEED TO WORK ON SENDING TWEETS TO ALL SUBSCRIBERS.
         addHashtags(tweet, tweetId)
         addMentions(tweet, tweetId)
+
+        sendToSubs(tweetId, tweet, user)
+        System.Console.WriteLine("({0})  {1}: {2}", tweetId, user, tweet)
         tweetId <- tweetId+1
 
 
@@ -126,13 +129,12 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let mutable tweetExpression = ""
         for row in tagRows do
             if tweetExpression.Length > 0 then
-                tweetExpression <- " OR "
-            tweetExpression <- "ID = '" + row.["TWEET_ID"].ToString() + "'"
+                tweetExpression <- tweetExpression + " OR "
+            tweetExpression <- tweetExpression + "ID = '" + row.["TWEET_ID"].ToString() + "'"
         let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
         let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
         addr <! ReceiveTweets(tweetRows |> Array.map getTweetsFromRows)
         
-
 
     let getSubscribedTo(subscriber: string, addr: IActorRef) = 
         let subExpression = "SUBSCRIBER = '" + subscriber + "'"
@@ -140,11 +142,12 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let mutable tweetExpression = ""
         for row in subRows do
             if tweetExpression.Length > 0 then
-                tweetExpression <- " OR "
-            tweetExpression <- "USER = '" + row.["USER"].ToString() + "'"
+                tweetExpression <- tweetExpression + " OR "
+            tweetExpression <- tweetExpression + "USER = '" + row.["USER"].ToString() + "'"
         let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
         let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
         addr <! ReceiveTweets(tweetRows |> Array.map getTweetsFromRows)
+
 
     let getMentionedTweet(user: string, addr: IActorRef) = 
         let mentionExpression = "MENTIONED_NAME = '" + user + "'"
@@ -152,12 +155,17 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let mutable tweetExpression = ""
         for row in mentionRows do
             if tweetExpression.Length > 0 then
-                tweetExpression <- " OR "
-            tweetExpression <- "ID = '" + row.["TWEET_ID"].ToString() + "'"
+                tweetExpression <- tweetExpression + " OR "
+            tweetExpression <- tweetExpression + "ID = '" + row.["TWEET_ID"].ToString() + "'"
         let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
         let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
         addr <! ReceiveTweets(tweetRows |> Array.map getTweetsFromRows)
-    
+
+
+    // TODO: NEED TO FIND A WAY TO SETUP NUM SUBS AT BEGINING
+    let setInitialSubs (user: string) (numSubs: int) = 
+        "dkslfj"
+
     // Actor loop
     let rec loop () = 
         actor {
@@ -167,13 +175,14 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             match msg with
             | Login user -> makeUserOnline(user)
             | Logout user -> makeUserOffline(user)
-            | PostTweet (user, tweet) -> processTweet (-1, tweet, user)
-            | SubscribeTo (user, subTo) -> addSubsc (user, subTo)  
+            | PostTweet (tweet, user) -> processTweet (-1, tweet, user)
+            | SubscribeTo (subTo, user) -> addSubsc (user, subTo)  
             | RegisterUser user -> registerUser(user, sender)
-            | ReTweet (user, tweet, origId) -> processTweet (origId, tweet, user)
+            | ReTweet (origId, tweet, user) -> processTweet (origId, tweet, user)
             | GetTweetsSubscribedTo user -> getSubscribedTo (user, sender)
             | GetTweetsByMention user -> getMentionedTweet (user, sender)
             | GetTweetsByHashtag hashtag -> getTweetsWithHashtags (hashtag, sender)
+            | SimulateSetInitialSubs (numSubs, user) -> 
 
             return! loop()
         }

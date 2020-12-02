@@ -17,11 +17,12 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
     let mutable userDict = new Dictionary<string, IActorRef>() // username -> ref
 
 
-    let startSim (termAddr: IActorRef, serverAddr)=
+    let startSim (termAddr: IActorRef) (serverAddr: IActorRef)=
         terminateAddress <- termAddr
         let zipf = Zipf(1.5, numUsers)
         for i in 0..numUsers-1 do
-            userDict.Add("user"+i.ToString(), spawn mailbox ("worker"+i.ToString()) (twitterUser (zipf.Sample()) serverAddr)) |> ignore
+            let username = "user"+i.ToString()
+            userDict.Add(username, spawn mailbox ("worker"+i.ToString()) (twitterUser username numUsers (zipf.Sample()) serverAddr)) |> ignore
 
 
     let processStatistics (stats: int*int*int)=

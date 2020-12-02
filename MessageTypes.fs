@@ -8,10 +8,11 @@ type ServerMsg =
     | PostTweet of string * string
     | SubscribeTo of string * string
     | RegisterUser of string
-    | ReTweet of string * string * int
+    | ReTweet of int * string * string
     | GetTweetsSubscribedTo of string
     | GetTweetsByMention of string
     | GetTweetsByHashtag of string
+    | SimulateSetInitialSubs of string * int
 
 
 // user message types

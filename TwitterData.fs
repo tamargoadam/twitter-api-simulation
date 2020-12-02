@@ -10,7 +10,7 @@ let createUserTable =
     let userData = new DataTable("USERS") 
     let cols = [|
         new DataColumn("USERNAME", System.Type.GetType("System.String")); // twitter handle
-        new DataColumn("ADDRESS", System.Type.GetType("Akka.Actor.IActorRef")); // user actor address
+        new DataColumn("ADDRESS", typedefof<Akka.Actor.IActorRef>); // user actor address
         new DataColumn("CONNECTED", System.Type.GetType("System.Boolean")) // is the user logged in
         |]
     cols.[0].Unique <- true
