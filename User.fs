@@ -6,15 +6,14 @@ open System
 open Akka.FSharp
 open Akka.Actor
 
-
 let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (serverAddr: IActorRef) (mailbox : Actor<UserMsg>) = 
-    let mutable isLoggedIn = false
     let rand = Random()
     let subToUseRatio = (float (min numSubscribers 1))/(float numUsers)
 
 
-    let postTweet (connected: bool) =
-        if connected then
+    let postTweet =
+        async {
+            do! Async.Sleep (int (250.0/subToUseRatio)) // user tweets proportional to subs-users ratio
             let mutable tweetContent = "This is the content of the tweet"
 
             // add random hashtag to tweet 11% of the time
@@ -25,6 +24,7 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (server
                 tweetContent <- tweetContent + " @user" + rand.Next(numUsers).ToString()
 
             serverAddr <! PostTweet (tweetContent, username)
+        }
 
 
     let viewTweet (id: int) (tweet: string) (user: string)=
@@ -34,28 +34,31 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (server
             serverAddr <! ReTweet (id, tweet, username)
     
 
-    let toggleConnectivity (connected: bool) =
-        // toggleConnectivity 50% of the time
-        if rand.NextDouble() <= 0.5 then
-            if connected then serverAddr <! Logout username
-            else serverAddr <! Login username
-            isLoggedIn <- not connected
+    let toggleDisconnection =
+        // 25% chance to toggle period of disconnectivity
+        async{
+            if rand.NextDouble() <= 0.25 then
+                serverAddr <! Logout username
+                do! Async.Sleep (rand.Next(2500)) // disconnect for up to 2.5 seconds
+                serverAddr <! Login username
+            }
 
 
-    // register this user with the server
+    // register this user with the server and login
     serverAddr <! RegisterUser username
     serverAddr <! Login username
-    isLoggedIn <- true
     
     // set initial subscribers for simulation
     serverAddr <! SimulateSetInitialSubs (username, numSubscribers)
         
     let rec loop () = 
+
         Akka.Dispatch.ActorTaskScheduler.RunTask(fun() ->
-            async {
-                do! Async.Sleep (int (250.0/subToUseRatio)) // user tweets proportional to subs-users ratio
-                postTweet isLoggedIn
-            } |> Async.StartAsTask :> Threading.Tasks.Task)
+            toggleDisconnection |> Async.StartAsTask :> Threading.Tasks.Task)
+
+        Akka.Dispatch.ActorTaskScheduler.RunTask(fun() ->
+            postTweet |> Async.StartAsTask :> Threading.Tasks.Task)
+
 
         actor {
 
