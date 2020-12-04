@@ -35,9 +35,9 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
 
 
 
-    let processStatistics (stats: float)=
+    let processStatistics (numTweets: int, timeProcessing: float)=
         // process stats here
-        terminateAddress <! "done"
+        terminateAddress <! RecieveStatistics (numTweets, timeProcessing)
     
 
     let rec loop () = 
@@ -46,7 +46,7 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
             let sender = mailbox.Sender()
             match msg with
                 | StartSimulation server -> startSim sender server
-                | RecieveStatistics stat -> processStatistics stat 
+                | RecieveStatistics (numTweets, timeProcessing) -> processStatistics (numTweets, timeProcessing) 
             return! loop()
         }
     loop()

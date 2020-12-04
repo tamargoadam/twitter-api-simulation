@@ -26,6 +26,7 @@ let shuffle a =
 let serverActor (mailbox : Actor<ServerMsg>)=
     let mutable numTweetsProcessed = 0
     let mutable totalTweets = System.Int32.MaxValue
+    let mutable timeProcessing = 0.0
     let mutable clientAddr = mailbox.Context.Parent
 
     // Data access functions
@@ -110,6 +111,8 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
 
     let processTweet(rtId: int, tweet: string, user: string) =
+        // clock time to process each tweet
+        let stopWatch = System.Diagnostics.Stopwatch.StartNew()
         // get unique id
         let mutable tweetId = rand.Next(System.Int32.MaxValue)
         while twitterData.Tables.["TWEETS"].Select("ID = '" + tweetId.ToString() + "'").Length > 0 do
@@ -130,11 +133,13 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         addMentions(tweet, tweetId)
 
         sendToSubs(tweetId, tweet, user)
+
+        stopWatch.Stop()
+        timeProcessing <- timeProcessing + stopWatch.Elapsed.TotalMilliseconds
+
         numTweetsProcessed <- numTweetsProcessed + 1
-        // System.Console.WriteLine("{0}/{1}", numTweetsProcessed, totalTweets)
-        // System.Console.WriteLine("({0})  {1}: {2}", tweetId, user, tweet)
         if numTweetsProcessed >= totalTweets then
-            clientAddr <! RecieveStatistics 0.0
+            clientAddr <! RecieveStatistics (numTweetsProcessed, timeProcessing)
 
 
     let addSubsc(subscriber: string, user: string) = 
@@ -204,10 +209,9 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
     let setTotalTweets (num: int) (client: IActorRef) =
         totalTweets <- num
-        // System.Console.WriteLine("Total Tweets: {0}", totalTweets)
         clientAddr <- client
         if numTweetsProcessed >= totalTweets then
-            client <! RecieveStatistics 0.0
+            client <! RecieveStatistics (numTweetsProcessed, timeProcessing)
 
 
     // Actor loop
@@ -215,8 +219,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         actor {
             let! msg = mailbox.Receive()
             let sender = mailbox.Sender()
-            // System.Console.WriteLine("{0}", msg)
-            // change data to support lookup by actor ref then use that instead of username for places with "sender"
+
             match msg with
             | Login user -> makeUserOnline (user, sender)
             | Logout user -> makeUserOffline user

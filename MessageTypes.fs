@@ -23,7 +23,7 @@ type UserMsg =
 // client supervisor message types
 type ClientMsg =
     | StartSimulation of Akka.Actor.IActorRef
-    | RecieveStatistics of float
+    | RecieveStatistics of int * float
 
 
 // user message types

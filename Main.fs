@@ -19,8 +19,14 @@ let main argv =
         let numUsers: int = int argv.[0]
         let client = spawn system ("client") (clientSupervisor numUsers)
         let server = spawn system ("server") serverActor
-        let s = client <? ClientMsg.StartSimulation server |> Async.RunSynchronously
         
+        let stats = client <? ClientMsg.StartSimulation server |> Async.RunSynchronously
+        match stats with
+        | RecieveStatistics (numTweets, timeProcessing)  -> 
+            Console.WriteLine("Total number of tweets processed: {0}", numTweets)
+            Console.WriteLine("Average time to process a tweet: {0} ms\n", timeProcessing/(float numTweets))
+        |_-> Console.WriteLine("An issue occured retreaving server measurments.\n")
+
         let subscribedQuery = server <? ServerMsg.GetTweetsSubscribedTo "user0" |> Async.RunSynchronously
         Console.WriteLine("Result of query of tweets @user0 is subscribed to (first 5):")
         match subscribedQuery with
