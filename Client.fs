@@ -9,7 +9,30 @@ open Akka.FSharp
 open System.Collections.Generic
 open MathNet.Numerics.Distributions
 
-let system = ActorSystem.Create("FSharp")
+open Akka.Configuration
+
+let config =
+    ConfigurationFactory.ParseString(
+        @"akka {
+            actor.provider = ""Akka.Actor.LocalActorRefProvider""
+            remote.helios.tcp {
+                hostname = localhost
+                port = 8090
+            }
+            
+            debug : {
+                    receive : on
+                    autoreceive : on
+                    lifecycle : on
+                    event-stream : on
+                    unhandled : on
+                    
+            }
+            log-dead-letters = 0
+            log-dead-letters-during-shutdown = off
+        }")
+
+let system = ActorSystem.Create("FSharp", config)
 
 let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
     let mutable terminateAddress = mailbox.Context.Parent
