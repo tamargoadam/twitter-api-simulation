@@ -1,4 +1,4 @@
-module Server
+module ServerActor
 
 open MessageTypes
 open TwitterData
@@ -7,6 +7,7 @@ open Akka.FSharp
 open Akka.Actor
 open System.Data
 
+let system = ActorSystem.Create "FSharp"
 
 let twitterData = createTwitterDataSet
 

@@ -2,11 +2,10 @@ module Client
 
 open User
 open MessageTypes
+open Requests
 
-open System
 open Akka.Actor
 open Akka.FSharp
-open System.Collections.Generic
 open MathNet.Numerics.Distributions
 
 open Akka.Configuration
@@ -46,7 +45,8 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
         for i in 0..numUsers-1 do
             let username = "user"+i.ToString()
             let numSubscribers = zipf.Sample()
-            serverAddr <! RegisterUser username
+            let json = """{"username":"""+username+"""}"""
+            makeRequest "/register" "POST" json |> ignore
             userList <- userList @ [(username, numSubscribers)]
         // spawn user actors
         for i in 0..userList.Length-1 do
@@ -54,7 +54,7 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
             let numTweets = (max 100 (snd userList.[i]) )/10
             totalTweets <- totalTweets + numTweets
             serverAddr <! SimulateSetExpectedTweets totalTweets
-            spawn mailbox ("worker"+i.ToString()) (twitterUser (fst userList.[i]) numUsers (snd userList.[i]) numTweets serverAddr) |> ignore
+            spawn mailbox ("worker"+i.ToString()) (twitterUser (fst userList.[i]) numUsers (snd userList.[i]) numTweets) |> ignore
 
 
 
@@ -68,7 +68,6 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
             let! msg = mailbox.Receive()
             let sender = mailbox.Sender()
             match msg with
-                | StartSimulation server -> startSim sender server
                 | RecieveStatistics (numTweets, timeProcessing) -> processStatistics (numTweets, timeProcessing) 
             return! loop()
         }

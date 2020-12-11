@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+
+<meta charset="utf-8" />
+
+<style>
+  .split {
+  height: 100%;
+  width: 50%;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  overflow-x: hidden;
+  padding-top: 20px;
+}
+
+.left {
+  left: 0;
+  background-color: rgb(160, 201, 235);
+}
+
+.right {
+  right: 0;
+  background-color:  rgb(61, 156, 233);
+}
+</style>
+
+<div class="split left">
+  <h1>Twitter Simple UI</h1>
+  <button id="connection" onclick="toggleConnection()">Connect</button>
+</div>
+
+<script language="javascript" type="text/javascript">
+
+  var wsUri = "ws://localhost:8080/tweets/stream";
+  var output;
+
+  function init()
+  {
+    output = document.getElementById("output");
+    connectionBtn = document.getElementById("connection");
+  }
+
+  function toggleConnection()
+  {
+    if (connectionBtn.innerHTML === "Connect") {
+        connectionBtn.innerHTML = "Disconnect";
+        init();
+        testWebSocket();
+    } else {
+        connectionBtn.innerHTML = "Connect";
+        websocket.close();
+    }
+  }
+
+  function testWebSocket()
+  {
+    websocket = new WebSocket(wsUri);
+    websocket.onopen = function(evt) { onOpen(evt) };
+    websocket.onclose = function(evt) { onClose(evt) };
+    websocket.onmessage = function(evt) { onMessage(evt) };
+    websocket.onerror = function(evt) { onError(evt) };
+  }
+
+  function onOpen(evt)
+  {
+    writeToScreen('<span style="color: green;">CONNECTED</span>');
+    doSend("WebSocket rocks");
+    doSend(JSON.stringify({FName: "Adam", LName: "Tamargo"}));
+    doSend("Message 3");
+    doSend("Guess I'm done");
+  }
+
+  function onClose(evt)
+  {
+    writeToScreen('<span style="color: red;">DISCONNECTED</span>');
+  }
+
+  function onMessage(evt)
+  {
+    writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
+  }
+
+  function onError(evt)
+  {
+    writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
+  }
+
+  function doSend(message)
+  {
+    writeToScreen("SENT: " + message); 
+    websocket.send(message);
+  }
+
+  function writeToScreen(message)
+  {
+    var pre = document.createElement("p");
+    pre.style.wordWrap = "break-word";
+    pre.innerHTML = message;
+    output.appendChild(pre);
+  }
+
+  window.addEventListener("load", init, false);
+
+</script>
+
+<div class="split right">
+  <h2>WebSocket Test</h2>
+
+  <div id="output"></div>
+</div>
