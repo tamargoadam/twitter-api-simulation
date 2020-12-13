@@ -1,6 +1,20 @@
 module MessageTypes
 
 
+// Message type deffinitions for serialization
+type UsernameMsg = {username:string} 
+type HashtagMsg = {tag:string} 
+type TweetMsg = {tweet:string; user:string}
+type ReTweetMsg = {origId:int; tweet:string; user:string}
+type SubscribeMsg = {subTo:string; user:string}
+type TweetData(id: int, tweet: string, user: string) = 
+  member this.id = id
+  member this.tweet = tweet
+  member this.user = user
+type TweetsMsg(tweets:TweetData[]) =
+  member this.tweets = tweets
+type SimInitSubsMsg = {username: string; numSubs: int}
+
 // server message types
 type ServerMsg = 
     | Login of string
@@ -17,7 +31,8 @@ type ServerMsg =
 
 // user message types
 type UserMsg = 
-    | ReceiveTweet of int * string * string // id, tweet, user
+    | ReceiveTweet of TweetData // id, tweet, user
+    | RequestLogin of string
 
 
 // client supervisor message types
@@ -28,4 +43,4 @@ type ClientMsg =
 
 // user message types
 type MainMsg = 
-    | QueryTweets of (int * string * string)[]
+    | QueryTweets of TweetsMsg

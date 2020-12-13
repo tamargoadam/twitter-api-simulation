@@ -21,8 +21,8 @@ let main argv =
         Console.WriteLine("Starting Twitter Simulation...\n")
         let numUsers: int = int argv.[0]
         let client = spawn system ("client") (clientSupervisor numUsers)
-        
-        let stats = client <? ClientMsg.StartSimulation "server" |> Async.RunSynchronously
+
+        let stats = client <? StartSimulation "server" |> Async.RunSynchronously
         match stats with
         | RecieveStatistics (numTweets, timeProcessing)  -> 
             Console.WriteLine("Total number of tweets processed: {0}", numTweets)

@@ -7,6 +7,7 @@ open Akka.FSharp
 open Akka.Actor
 open System.Data
 
+
 let system = ActorSystem.Create "FSharp"
 
 let twitterData = createTwitterDataSet
@@ -105,10 +106,11 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let subRows = twitterData.Tables.["SUBSCRIBERS"].Select(subExpression)
         let mutable userRows = [||]
         for row in subRows do
+            if row.["SUBSCRIBER"].ToString() = "atamargo" then printfn "Sending to adam."
             let userExpression =  "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
             userRows <- Array.append userRows (twitterData.Tables.["USERS"].Select(userExpression))
         for row in userRows do
-            (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet(id, tweet, user)
+            (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet (TweetData(id, tweet, user))
 
 
     let processTweet(rtId: int, tweet: string, user: string) =
@@ -149,6 +151,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         row.["SUBSCRIBER"] <- subscriber
 
         twitterData.Tables.["SUBSCRIBERS"].Rows.Add(row)
+        System.Console.WriteLine("{0} subbed to {1}", subscriber, user)
 
 
     let getTweetsWithHashtags(tag: string, addr: IActorRef) = 
@@ -160,11 +163,14 @@ let serverActor (mailbox : Actor<ServerMsg>)=
                 tweetExpression <- tweetExpression + " OR "
             tweetExpression <- tweetExpression + "ID = '" + row.["TWEET_ID"].ToString() + "'"
         if tweetExpression = "" then 
-            addr <! QueryTweets(Array.empty)
+            addr <! QueryTweets(TweetsMsg(Array.empty))
         else
             let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
-            let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
-            addr <! QueryTweets(tweetRows |> Array.map getTweetsFromRows)
+            let getTweetsFromRows = fun (x:DataRow) -> TweetData(x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
+            addr <! QueryTweets(TweetsMsg(tweetRows |> Array.map getTweetsFromRows))
+
+            let printFromRow = fun (x:DataRow) -> printf "%s" (x.["TWEET"] :?> string)
+            for row in tweetRows do row |> printFromRow
         
 
     let getSubscribedTo(subscriber: string, addr: IActorRef) = 
@@ -176,11 +182,11 @@ let serverActor (mailbox : Actor<ServerMsg>)=
                 tweetExpression <- tweetExpression + " OR "
             tweetExpression <- tweetExpression + "USER = '" + row.["USER"].ToString() + "'"
         if tweetExpression = "" then 
-            addr <! QueryTweets(Array.empty)
+            addr <! QueryTweets(TweetsMsg(Array.empty))
         else
             let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
-            let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
-            addr <! QueryTweets(tweetRows |> Array.map getTweetsFromRows)
+            let getTweetsFromRows = fun (x:DataRow) -> TweetData(x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
+            addr <! QueryTweets(TweetsMsg(tweetRows |> Array.map getTweetsFromRows))
 
 
     let getMentionedTweet(user: string, addr: IActorRef) = 
@@ -192,11 +198,11 @@ let serverActor (mailbox : Actor<ServerMsg>)=
                 tweetExpression <- tweetExpression + " OR "
             tweetExpression <- tweetExpression + "ID = '" + row.["TWEET_ID"].ToString() + "'"
         if tweetExpression = "" then 
-            addr <! QueryTweets(Array.empty)
+            addr <! QueryTweets(TweetsMsg(Array.empty))
         else
             let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
-            let getTweetsFromRows = fun (x:DataRow) -> (x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
-            addr <! QueryTweets(tweetRows |> Array.map getTweetsFromRows)
+            let getTweetsFromRows = fun (x:DataRow) -> TweetData(x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
+            addr <! QueryTweets(TweetsMsg(tweetRows |> Array.map getTweetsFromRows))
 
 
     let setInitialSubs (user: string) (numSubs: int) = 

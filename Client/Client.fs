@@ -4,6 +4,7 @@ open User
 open MessageTypes
 open Requests
 
+open System.Collections.Generic
 open Akka.Actor
 open Akka.FSharp
 open MathNet.Numerics.Distributions
@@ -35,26 +36,37 @@ let system = ActorSystem.Create("FSharp", config)
 
 let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
     let mutable terminateAddress = mailbox.Context.Parent
-    let mutable userList = [] // username -> numSubs
+    let mutable userDict = new Dictionary<string, int>()
     let mutable totalTweets = 0
 
-    let startSim (termAddr: IActorRef) (serverAddr: IActorRef)=
+    let startSim (termAddr: IActorRef) =
         terminateAddress <- termAddr
         let zipf = Zipf(1.5, numUsers)
+
+        printf "Press any key to register simulated users.\n"
+        System.Console.ReadKey() |> ignore
         // register each user with server
         for i in 0..numUsers-1 do
             let username = "user"+i.ToString()
             let numSubscribers = zipf.Sample()
-            let json = """{"username":"""+username+"""}"""
+            let json = """{'username':'"""+username+"""'}"""
             makeRequest "/register" "POST" json |> ignore
-            userList <- userList @ [(username, numSubscribers)]
-        // spawn user actors
-        for i in 0..userList.Length-1 do
-            serverAddr <! SimulateSetInitialSubs ((fst userList.[i]), (snd userList.[i]))
-            let numTweets = (max 100 (snd userList.[i]) )/10
+            userDict.Add(username, numSubscribers)
+        // initialize subscribers for each user
+        for user in userDict do
+            let json = """{'username':'"""+user.Key+"""', 'numSubs':'"""+user.Value.ToString()+"""'}"""
+            makeRequest "/simulate/initSubs" "POST" json |> ignore
+        
+        printf "Press any key to spawn active user simulations.\n"
+        System.Console.ReadKey() |> ignore
+        // spawn actors to simulate user activity
+        let mutable i = 0
+        for user in userDict do
+            let numTweets = (max 100 user.Value )/10
             totalTweets <- totalTweets + numTweets
-            serverAddr <! SimulateSetExpectedTweets totalTweets
-            spawn mailbox ("worker"+i.ToString()) (twitterUser (fst userList.[i]) numUsers (snd userList.[i]) numTweets) |> ignore
+            spawn mailbox ("worker"+i.ToString()) (twitterUser user.Key numUsers user.Value numTweets) |> ignore
+            i <- i+1
+
 
 
 
@@ -69,6 +81,7 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
             let sender = mailbox.Sender()
             match msg with
                 | RecieveStatistics (numTweets, timeProcessing) -> processStatistics (numTweets, timeProcessing) 
+                | StartSimulation server -> startSim sender 
             return! loop()
         }
     loop()

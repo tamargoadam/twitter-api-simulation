@@ -15,7 +15,7 @@ open Suave.RequestErrors
 open Suave.Logging
 open Suave.Utils
 
-open System
+open System.Collections.Generic
 open System.Net
 
 open Newtonsoft.Json
@@ -23,13 +23,6 @@ open Newtonsoft.Json
 open Suave.Sockets
 open Suave.Sockets.Control
 open Suave.WebSocket
-
-// Message type deffinitions
-type UserMsg = {username:string} 
-type HashtagMsg = {tag:string} 
-type TweetMsg = {tweet:string; user:string}
-type ReTweetMsg = {origId:int; tweet:string; user:string}
-type SubscribeMsg = {subTo:string; user:string}
 
 
 // JSON serializing and deserializing functions
@@ -48,71 +41,83 @@ let getResourceFromReq<'a> (req : HttpRequest) =
     UTF8.toString rawForm
   req.rawForm |> getString |> fromJson<'a>
 
+let stringToByteSeg (s: string) =
+  s
+  |> System.Text.Encoding.ASCII.GetBytes
+  |> ByteSegment
 
 // Spawn server actor
-let serverActor = spawn system ("server") serverActor
+let serverActor = spawn system "server" serverActor
+let socketIntexSet = new HashSet<int>()
 
 
 // Web socket connection handler 
-let ws (webSocket : WebSocket) (context: HttpContext) =
-  socket {
-    let mutable loop = true
+let ws (webSocket : WebSocket) =
+  fun context ->
+    let mutable index = rand.Next(System.Int32.MaxValue)
+    while socketIntexSet.Contains(index) do
+      index <- rand.Next(System.Int32.MaxValue)
+    socketIntexSet.Add(index) |> ignore
+    let inbox = spawn system ("ws"+index.ToString()) (fun (mailbox : Actor<UserMsg>) -> actor {
+      let close = ref false
+      while not !close do
+        
+        let! msg = mailbox.Receive()
+        match msg with
+        | ReceiveTweet (tweet: TweetData) ->
+          let byteResponse = stringToByteSeg (JsonConvert.SerializeObject tweet)
+          webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
+          
+        
+        | RequestLogin username ->
+          serverActor <! Login username
+          let response = sprintf "You are now logged in as %s!" username
+          let byteResponse = stringToByteSeg response
+          webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
+    })
 
-    while loop do
+    socket {
+      let mutable loop = true
 
-      // // TEST
-      // let test =
-      //     "This is the test response"
-      //     |> System.Text.Encoding.ASCII.GetBytes
-      //     |> ByteSegment
-      // do! webSocket.send Text test true
-      // Console.WriteLine("msg sent!")
-      // // TEST
+      while loop do
 
-      let! msg = webSocket.read()
-      // the message has type (Opcode * byte [] * bool)
-      //
-      // - Opcode type:
-      //    type Opcode = Continuation | Text | Binary | Reserved | Close | Ping | Pong
-      // - byte [] contains the actual message
-      // - the last element is the FIN byte
+        // // TEST
+        // let test =
+        //     "This is the test response"
+        //     |> System.Text.Encoding.ASCII.GetBytes
+        //     |> ByteSegment
+        // do! webSocket.send Text test true
+        // Console.WriteLine("msg sent!")
+        // // TEST
 
-      match msg with
-      | (Text, data, true) ->
-        // the message can be converted to a string
-        let str = UTF8.toString data
-        let response = sprintf "response to %s" str
+        let! msg = webSocket.read()
 
-        // the response needs to be converted to a ByteSegment
-        let byteResponse =
-          response
-          |> System.Text.Encoding.ASCII.GetBytes
-          |> ByteSegment
+        match msg with
+        | (Text, rawData, true) ->
+          // Handle login request and connetion
+          try
+            let data = rawData |> UTF8.toString |> fromJson<UsernameMsg>
+            inbox <! (RequestLogin data.username)
+          with
+          |_-> 
+            let byteResponse = stringToByteSeg "An error occured. Login failed."
+            do! webSocket.send Text byteResponse true
+        
+        | (Close, _, _) ->
+          let emptyResponse = [||] |> ByteSegment
+          do! webSocket.send Close emptyResponse true
+          loop <- false
 
-        // the `send` function sends a message back to the client
-        do! webSocket.send Text byteResponse true
-
-      | (Close, _, _) ->
-        let emptyResponse = [||] |> ByteSegment
-        do! webSocket.send Close emptyResponse true
-
-        // after sending a Close message, stop the loop
-        loop <- false
-
-      | _ -> ()
-    }
+        | _ -> ()
+      }
 
 let wsWithErrorHandling (webSocket : WebSocket) (context: HttpContext) = 
   let websocketWorkflow = ws webSocket context
-   
   async {
     let! successOrError = websocketWorkflow
     match successOrError with
-    // Success case
     | Choice1Of2() -> ()
-    // Error case
     | Choice2Of2(error) ->
-        // Example error handling logic here
         printfn "Error: [%A]" error        
     return successOrError
    }
@@ -126,15 +131,33 @@ let app : WebPart =
     GET >=> 
       choose [ 
         path "/" >=> file "index.html"; browseHome
-        path "/tweets/subscribedTo" >=> request (getResourceFromReq<UserMsg> >> JSON);
-        path "/tweets/byMentioned" >=> request (getResourceFromReq<UserMsg> >> JSON);
-        path "/tweets/byHashtag" >=> request (getResourceFromReq<HashtagMsg> >> JSON);
+        path "/tweets/subscribedTo" >=> request (
+          fun x ->
+            let data = getResourceFromReq<UsernameMsg> x
+            let res = serverActor <? GetTweetsSubscribedTo data.username |> Async.RunSynchronously
+            match res with
+            | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+          );
+        path "/tweets/byMentioned" >=> request (
+          fun x ->
+            let data = getResourceFromReq<UsernameMsg> x
+            let res = serverActor <? GetTweetsByMention data.username |> Async.RunSynchronously
+            match res with
+            | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+          );
+        path "/tweets/byHashtag" >=> request (
+          fun x ->
+            let data = getResourceFromReq<HashtagMsg> x
+            let res = serverActor <? GetTweetsByHashtag data.tag |> Async.RunSynchronously
+            match res with
+            | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+          );
       ]
     POST >=> 
       choose [ 
         path "/register" >=> request (
           fun x ->
-            let data = getResourceFromReq<UserMsg> x
+            let data = getResourceFromReq<UsernameMsg> x
             serverActor <! RegisterUser data.username
             OK "You have been registered."
           );
@@ -156,18 +179,24 @@ let app : WebPart =
             serverActor <! ReTweet (data.origId, data.tweet, data.user)
             OK ("Your retweet has been posted.")
           );
+          path "/simulate/initSubs" >=> request (
+          fun x ->
+            let data = getResourceFromReq<SimInitSubsMsg> x
+            serverActor <! SimulateSetInitialSubs (data.username, data.numSubs)
+            OK ("Subscriber simulation initialized.")
+          );
       ]
     PUT >=>
       choose [
         path "/login" >=> request (
           fun x ->
-            let data = getResourceFromReq<UserMsg> x
+            let data = getResourceFromReq<UsernameMsg> x
             serverActor <! Login data.username
             OK "You have been logged in."
           );
         path "/logout" >=> request (
           fun x ->
-            let data = getResourceFromReq<UserMsg> x
+            let data = getResourceFromReq<UsernameMsg> x
             serverActor <! Logout data.username
             OK "You have been logged out."
           );

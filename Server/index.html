@@ -64,10 +64,7 @@
   function onOpen(evt)
   {
     writeToScreen('<span style="color: green;">CONNECTED</span>');
-    doSend("WebSocket rocks");
-    doSend(JSON.stringify({FName: "Adam", LName: "Tamargo"}));
-    doSend("Message 3");
-    doSend("Guess I'm done");
+    doSend(JSON.stringify({username: "atamargo"}));
   }
 
   function onClose(evt)
@@ -104,7 +101,7 @@
 </script>
 
 <div class="split right">
-  <h2>WebSocket Test</h2>
+  <h2>Live Tweets:</h2>
 
   <div id="output"></div>
 </div>
