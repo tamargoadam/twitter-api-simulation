@@ -90,16 +90,12 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
         Akka.Dispatch.ActorTaskScheduler.RunTask(fun() ->
             toggleDisconnection |> Async.StartAsTask :> Tasks.Task)
         actor {
-            // let! msg = mailbox.Receive()
-            // // run functions to record measurments that can be sent back to the client supervisor
-            // match msg with
-            //     | ReceiveTweet (id, tweet, user) -> viewTweet id tweet user
             let mutable contents = ""
             while ws.State = WebSocketState.Open do
                 let buff = ArraySegment<byte>(Array.zeroCreate 1028)
                 let result = ws.ReceiveAsync(buff, CancellationToken.None).Result
                 contents <- Encoding.UTF8.GetString(buff.Array, 0, result.Count)
-                Console.WriteLine("Socket Message: {0}",contents)     
+                // Console.WriteLine("Socket Message: {0}",contents)     
             return! loop()
         }
     loop()

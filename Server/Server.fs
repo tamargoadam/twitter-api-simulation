@@ -34,6 +34,7 @@ let JSON v =
   >=> Writers.setMimeType "application/json; charset=utf-8"
 
 let fromJson<'a> json =
+  printfn "%s" json
   JsonConvert.DeserializeObject(json, typeof<'a>) :?> 'a
 
 let getResourceFromReq<'a> (req : HttpRequest) =
@@ -67,6 +68,7 @@ let ws (webSocket : WebSocket) =
         | ReceiveTweet (tweet: TweetData) ->
           let byteResponse = stringToByteSeg (JsonConvert.SerializeObject tweet)
           webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
+        |_-> ()
           
         
         | RequestLogin username ->
@@ -80,15 +82,6 @@ let ws (webSocket : WebSocket) =
       let mutable loop = true
 
       while loop do
-
-        // // TEST
-        // let test =
-        //     "This is the test response"
-        //     |> System.Text.Encoding.ASCII.GetBytes
-        //     |> ByteSegment
-        // do! webSocket.send Text test true
-        // Console.WriteLine("msg sent!")
-        // // TEST
 
         let! msg = webSocket.read()
 
@@ -123,7 +116,6 @@ let wsWithErrorHandling (webSocket : WebSocket) (context: HttpContext) =
    }
 
 
-// TODO: update action on requests to perform functionality between getResourceFromReq and JSON
 // Application routing and HTTP req handling
 let app : WebPart = 
   choose [
@@ -133,24 +125,37 @@ let app : WebPart =
         path "/" >=> file "index.html"; browseHome
         path "/tweets/subscribedTo" >=> request (
           fun x ->
-            let data = getResourceFromReq<UsernameMsg> x
-            let res = serverActor <? GetTweetsSubscribedTo data.username |> Async.RunSynchronously
-            match res with
-            | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+            match x.queryParam "username" with  
+            | Choice1Of2 username -> 
+              let res = serverActor <? GetTweetsSubscribedTo username |> Async.RunSynchronously
+              match res with
+              | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+            | Choice2Of2 msg -> BAD_REQUEST msg
           );
         path "/tweets/byMentioned" >=> request (
           fun x ->
-            let data = getResourceFromReq<UsernameMsg> x
-            let res = serverActor <? GetTweetsByMention data.username |> Async.RunSynchronously
-            match res with
-            | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+            match x.queryParam "username" with  
+            | Choice1Of2 username -> 
+              let res = serverActor <? GetTweetsByMention username |> Async.RunSynchronously
+              match res with
+              | QueryTweets (tweets: TweetsMsg) -> JSON tweets  
+            | Choice2Of2 msg -> BAD_REQUEST msg
           );
         path "/tweets/byHashtag" >=> request (
           fun x ->
-            let data = getResourceFromReq<HashtagMsg> x
-            let res = serverActor <? GetTweetsByHashtag data.tag |> Async.RunSynchronously
+            match x.queryParam "tag" with  
+            | Choice1Of2 username -> 
+              let res = serverActor <? GetTweetsByHashtag username |> Async.RunSynchronously
+              match res with
+              | QueryTweets (tweets: TweetsMsg) -> JSON tweets  
+            | Choice2Of2 msg -> BAD_REQUEST msg
+          );
+        path "/statistics" >=> request (
+          fun x ->
+            let res = serverActor <? GetStatistics |> Async.RunSynchronously
             match res with
-            | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+            | RecieveStatistics (stats: StatsMsg) -> JSON stats  
+            |_-> BAD_REQUEST ""
           );
       ]
     POST >=> 
@@ -176,7 +181,7 @@ let app : WebPart =
         path "/reTweet" >=> request (
           fun x ->
             let data = getResourceFromReq<ReTweetMsg> x
-            serverActor <! ReTweet (data.origId, data.tweet, data.user)
+            serverActor <! ReTweet (data.origId, data.user)
             OK ("Your retweet has been posted.")
           );
           path "/simulate/initSubs" >=> request (
@@ -188,12 +193,6 @@ let app : WebPart =
       ]
     PUT >=>
       choose [
-        path "/login" >=> request (
-          fun x ->
-            let data = getResourceFromReq<UsernameMsg> x
-            serverActor <! Login data.username
-            OK "You have been logged in."
-          );
         path "/logout" >=> request (
           fun x ->
             let data = getResourceFromReq<UsernameMsg> x

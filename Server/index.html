@@ -25,34 +25,87 @@
 </style>
 
 <div class="split left">
+
   <h1>Twitter Simple UI</h1>
-  <button id="connection" onclick="toggleConnection()">Connect</button>
+
+  <p>
+    <label for="username">Your username:</label>
+    <input type="username" name="username" id="username">
+  </p>
+  <button id="register" onclick="registerReq()">Register</button>
+  <button id="connection" onclick="toggleConnection()">Login</button>
+
+  </br></br>
+
+  <p>
+    <label for="subTo">Subscribe to:</label>
+    <input type="subTo" name="subTo" id="subTo">
+  </p>
+  <button id="subscribe" onclick="subReq()">Subscribe</button>
+
+  </br></br>
+
+  <p>
+    <label for="tweet">Post Tweet:</label>
+    <input type="tweet" name="tweet" id="tweet" size="50px">
+  </p>
+  <button id="tweet" onclick="postReq()">Post</button>
+
+  </br></br>
+
+  <p>
+    <label for="reTweet">ID to ReTweet:</label>
+    <input type="reTweet" name="reTweet" id="reTweet" size="10px">
+  </p>
+  <button id="reTweet" onclick="rePostReq()">ReTweet</button>
+
+  </br></br>
+
+  <p>
+    <label for="queryBy">Query By:</label>
+    <select type="queryBy" name="queryBy" id="queryBy">
+      <option value="mention">Mention</option>
+      <option value="hashtag">Hashtag</option>
+      <option value="subbedTo">All Subscribed To</option>
+    </select>
+  </p>
+  <p>
+    <label for="query">User/Tag:</label>
+    <input type="query" name="query" id="query">
+  </p>
+  <button id="runQuery" onclick="queryReq()">Run Query</button>
+
+  </br></br>
+
+  <button id="stats" onclick="getServerStats()">Get Current Server Stats</button>
+
 </div>
 
 <script language="javascript" type="text/javascript">
 
   var wsUri = "ws://localhost:8080/tweets/stream";
+  var httpBaseUri = "http://localhost:8080/"
   var output;
 
   function init()
   {
     output = document.getElementById("output");
     connectionBtn = document.getElementById("connection");
+    registerBtn = documetn.getElementById("register")
   }
 
   function toggleConnection()
   {
-    if (connectionBtn.innerHTML === "Connect") {
-        connectionBtn.innerHTML = "Disconnect";
-        init();
-        testWebSocket();
+    if (connectionBtn.innerHTML === "Login") {
+        connectionBtn.innerHTML = "Logout";
+        connectWebSocket();
     } else {
-        connectionBtn.innerHTML = "Connect";
+        connectionBtn.innerHTML = "Login";
         websocket.close();
     }
   }
 
-  function testWebSocket()
+  function connectWebSocket()
   {
     websocket = new WebSocket(wsUri);
     websocket.onopen = function(evt) { onOpen(evt) };
@@ -64,28 +117,23 @@
   function onOpen(evt)
   {
     writeToScreen('<span style="color: green;">CONNECTED</span>');
-    doSend(JSON.stringify({username: "atamargo"}));
+    websocket.send(JSON.stringify({username: document.getElementById('username').value}));
   }
 
   function onClose(evt)
   {
+    logout();
     writeToScreen('<span style="color: red;">DISCONNECTED</span>');
   }
 
   function onMessage(evt)
   {
-    writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
+    writeToScreen(evt.data);
   }
 
   function onError(evt)
   {
     writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
-  }
-
-  function doSend(message)
-  {
-    writeToScreen("SENT: " + message); 
-    websocket.send(message);
   }
 
   function writeToScreen(message)
@@ -96,12 +144,132 @@
     output.appendChild(pre);
   }
 
+  function registerReq(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        alert(xhttp.responseText)
+      }
+    };
+    xhttp.open("POST", httpBaseUri+"register", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send( "{'username':'"+document.getElementById('username').value+"'}");
+  }
+
+  function logout(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        alert(xhttp.responseText)
+      }
+    };
+    xhttp.open("PUT", httpBaseUri+"logout", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send( "{'username':'"+document.getElementById('username').value+"'}");
+  }
+
+  function subReq(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        alert(xhttp.responseText)
+      }
+    };
+    xhttp.open("POST", httpBaseUri+"subscribeTo", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send( "{'subTo':'"+document.getElementById('subTo').value+"', 'user':'"+document.getElementById('username').value+"'}");
+  }
+
+  function postReq(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        writeToScreen("You said: "+document.getElementById('tweet').value)
+      }
+    };
+    xhttp.open("POST", httpBaseUri+"postTweet", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send( "{'tweet':'"+document.getElementById('tweet').value+"', 'user':'"+document.getElementById('username').value+"'}");
+  }
+
+  function rePostReq(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        writeToScreen(xhttp.responseText)
+      }
+    };
+    xhttp.open("POST", httpBaseUri+"reTweet", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send( "{'orgId':'"+document.getElementById('reTweet').value+"', 'user':'"+document.getElementById('username').value+"'}");
+  }
+
+  function byMention(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        writeToScreen(xhttp.responseText)
+      }
+    };
+    xhttp.open("GET", httpBaseUri+"tweets/byMentioned", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send( "{'username':'"+document.getElementById('query').value+"'}");
+  }
+
+  function byTag(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        writeToScreen(xhttp.responseText)
+      }
+    };
+    xhttp.open("GET", httpBaseUri+"tweets/byHashtag", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send( "{'tag':'"+document.getElementById('query').value+"'}");
+  }
+
+  function bySubbedTo(){
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        writeToScreen(xhttp.responseText)
+      }
+    };
+    xhttp.open("GET", httpBaseUri+"tweets/subscribedTo?username="+document.getElementById('username').value, true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send();
+  }
+
+  function queryReq() {
+    var type = document.getElementById("queryBy")
+    var value = type.options[type.selectedIndex].value;
+    if(value == "mention"){
+      byMention();
+    }else if(value == "hashtag"){
+      byTag();
+    }else{
+      bySubbedTo();
+    }
+  }
+
+  function getServerStats() {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      if (this.readyState == 4 && this.status == 200) {
+        writeToScreen("Current server stats: "+xhttp.responseText)
+      }
+    };
+    xhttp.open("GET", httpBaseUri+"statistics", true);
+    xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
+    xhttp.send();
+  }
+
   window.addEventListener("load", init, false);
 
 </script>
 
 <div class="split right">
-  <h2>Live Tweets:</h2>
+  <h2>Live Feed:</h2>
 
   <div id="output"></div>
 </div>

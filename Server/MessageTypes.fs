@@ -5,7 +5,7 @@ module MessageTypes
 type UsernameMsg = {username:string} 
 type HashtagMsg = {tag:string} 
 type TweetMsg = {tweet:string; user:string}
-type ReTweetMsg = {origId:int; tweet:string; user:string}
+type ReTweetMsg = {origId:int; user:string}
 type SubscribeMsg = {subTo:string; user:string}
 type TweetData(id: int, tweet: string, user: string) = 
   member this.id = id
@@ -14,6 +14,9 @@ type TweetData(id: int, tweet: string, user: string) =
 type TweetsMsg(tweets:TweetData[]) =
   member this.tweets = tweets
 type SimInitSubsMsg = {username: string; numSubs: int}
+type StatsMsg(numTweets: int, timeProcessing: float) = 
+  member this.numTweets = numTweets
+  member this.timeProcessing = timeProcessing
 
 // server message types
 type ServerMsg = 
@@ -22,24 +25,18 @@ type ServerMsg =
     | PostTweet of string * string
     | SubscribeTo of string * string
     | RegisterUser of string
-    | ReTweet of int * string * string
+    | ReTweet of int * string
     | GetTweetsSubscribedTo of string
     | GetTweetsByMention of string
     | GetTweetsByHashtag of string
     | SimulateSetInitialSubs of string * int
-    | SimulateSetExpectedTweets of int
+    | GetStatistics
 
 // user message types
 type UserMsg = 
     | ReceiveTweet of TweetData // id, tweet, user
     | RequestLogin of string
-
-
-// client supervisor message types
-type ClientMsg =
-    | StartSimulation of Akka.Actor.IActorRef
-    | RecieveStatistics of int * float
-
+    | RecieveStatistics of StatsMsg
 
 // user message types
 type MainMsg = 

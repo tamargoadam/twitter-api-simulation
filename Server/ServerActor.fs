@@ -27,9 +27,7 @@ let shuffle a =
 // Server actor to handle requests
 let serverActor (mailbox : Actor<ServerMsg>)=
     let mutable numTweetsProcessed = 0
-    let mutable totalTweets = System.Int32.MaxValue
     let mutable timeProcessing = 0.0
-    let mutable clientAddr = mailbox.Context.Parent
 
     // Data access functions
     let makeUserOnline (userName: string, addr: IActorRef) = 
@@ -113,13 +111,16 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet (TweetData(id, tweet, user))
 
 
-    let processTweet(rtId: int, tweet: string, user: string) =
+    let processTweet(rtId: int, t: string, user: string) =
         // clock time to process each tweet
         let stopWatch = System.Diagnostics.Stopwatch.StartNew()
         // get unique id
         let mutable tweetId = rand.Next(System.Int32.MaxValue)
         while twitterData.Tables.["TWEETS"].Select("ID = '" + tweetId.ToString() + "'").Length > 0 do
             tweetId <- rand.Next(System.Int32.MaxValue)
+        let mutable tweet = t
+        if rtId <> -1 then
+            tweet <- twitterData.Tables.["TWEETS"].Select("ID = '" + rtId.ToString() + "'").[0].["TWEET"] :?> string
 
         let row = twitterData.Tables.["TWEETS"].NewRow()
         row.["ID"] <- tweetId
@@ -141,8 +142,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         timeProcessing <- timeProcessing + stopWatch.Elapsed.TotalMilliseconds
 
         numTweetsProcessed <- numTweetsProcessed + 1
-        if numTweetsProcessed >= totalTweets then
-            clientAddr <! RecieveStatistics (numTweetsProcessed, timeProcessing)
 
 
     let addSubsc(subscriber: string, user: string) = 
@@ -214,11 +213,8 @@ let serverActor (mailbox : Actor<ServerMsg>)=
                 addSubsc(sub.ToString(), user)
 
 
-    let setTotalTweets (num: int) (client: IActorRef) =
-        totalTweets <- num
-        clientAddr <- client
-        if numTweetsProcessed >= totalTweets then
-            client <! RecieveStatistics (numTweetsProcessed, timeProcessing)
+    let getStats (addr: IActorRef) =
+        addr <! RecieveStatistics (StatsMsg(numTweetsProcessed, timeProcessing))
 
 
     // Actor loop
@@ -233,12 +229,12 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             | PostTweet (tweet, user) -> processTweet (-1, tweet, user)
             | SubscribeTo (subTo, user) -> addSubsc (user, subTo)  
             | RegisterUser user -> registerUser user
-            | ReTweet (origId, tweet, user) -> processTweet (origId, tweet, user)
+            | ReTweet (origId, user) -> processTweet (origId, "", user)
             | GetTweetsSubscribedTo user -> getSubscribedTo (user, sender)
             | GetTweetsByMention user -> getMentionedTweet (user, sender)
             | GetTweetsByHashtag hashtag -> getTweetsWithHashtags (hashtag, sender)
             | SimulateSetInitialSubs (numSubs, user) -> setInitialSubs numSubs user
-            | SimulateSetExpectedTweets numTweets -> setTotalTweets numTweets sender
+            | GetStatistics -> getStats sender
 
             return! loop()
         }
