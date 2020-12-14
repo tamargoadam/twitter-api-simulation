@@ -19,7 +19,7 @@ let rand = Random()
 
 let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTweets: int) (mailbox : Actor<UserMsg>) = 
     let ws = new ClientWebSocket()
-    let wsUri = Uri(wsUrl+"/tweets/stream")
+    let wsUri = Uri("ws://localhost:8080/tweets/stream")
 
 
     let openTweetSocket =
