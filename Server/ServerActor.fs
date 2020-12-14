@@ -104,7 +104,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let subRows = twitterData.Tables.["SUBSCRIBERS"].Select(subExpression)
         let mutable userRows = [||]
         for row in subRows do
-            if row.["SUBSCRIBER"].ToString() = "atamargo" then printfn "Sending to adam."
             let userExpression =  "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
             userRows <- Array.append userRows (twitterData.Tables.["USERS"].Select(userExpression))
         for row in userRows do
@@ -150,7 +149,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         row.["SUBSCRIBER"] <- subscriber
 
         twitterData.Tables.["SUBSCRIBERS"].Rows.Add(row)
-        System.Console.WriteLine("{0} subbed to {1}", subscriber, user)
 
 
     let getTweetsWithHashtags(tag: string, addr: IActorRef) = 
@@ -167,9 +165,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             let tweetRows =  twitterData.Tables.["TWEETS"].Select(tweetExpression)
             let getTweetsFromRows = fun (x:DataRow) -> TweetData(x.["ID"] :?> int, x.["TWEET"] :?> string, x.["USER"] :?> string)
             addr <! QueryTweets(TweetsMsg(tweetRows |> Array.map getTweetsFromRows))
-
-            let printFromRow = fun (x:DataRow) -> printf "%s" (x.["TWEET"] :?> string)
-            for row in tweetRows do row |> printFromRow
         
 
     let getSubscribedTo(subscriber: string, addr: IActorRef) = 

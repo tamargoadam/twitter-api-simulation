@@ -10,6 +10,7 @@ open Akka.FSharp
 open MathNet.Numerics.Distributions
 
 open Akka.Configuration
+open Newtonsoft.Json
 
 let config =
     ConfigurationFactory.ParseString(
@@ -49,12 +50,12 @@ let clientSupervisor (numUsers: int) (mailbox : Actor<ClientMsg>)=
         for i in 0..numUsers-1 do
             let username = "user"+i.ToString()
             let numSubscribers = zipf.Sample()
-            let json = """{'username':'"""+username+"""'}"""
+            let json = JsonConvert.SerializeObject(UsernameMsg(username))
             makeRequest "/register" "POST" json |> ignore
             userDict.Add(username, numSubscribers)
         // initialize subscribers for each user
         for user in userDict do
-            let json = """{'username':'"""+user.Key+"""', 'numSubs':'"""+user.Value.ToString()+"""'}"""
+            let json = JsonConvert.SerializeObject(SimInitSubsMsg(user.Key, user.Value))
             makeRequest "/simulate/initSubs" "POST" json |> ignore
         
         printf "Press any key to spawn active user simulations.\n"

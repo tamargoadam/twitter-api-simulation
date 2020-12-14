@@ -14,6 +14,7 @@ open System.Net.WebSockets
 open System.Threading
 open System.Text
 
+open Newtonsoft.Json
 
 let rand = Random()
 
@@ -46,7 +47,7 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
                 if rand.NextDouble() <= 0.49 then
                     tweetContent <- tweetContent + " @user" + rand.Next(numUsers).ToString()
 
-                let json = """{'tweet':'"""+tweetContent+"""', 'user':'"""+username+"""'}"""
+                let json = JsonConvert.SerializeObject(TweetMsg(tweetContent, username))
                 makeRequest "/postTweet" "POST" json |> ignore
         }
 
@@ -54,12 +55,12 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
     let viewTweet (id: int) (tweet: string) (user: string) =
         // retweet viewed tweet 13% of the time
         if rand.NextDouble() <= 0.13 then
-            let json = """{'id':'"""+id.ToString()+"""', 'tweet':'"""+tweet+"""', 'user':'"""+username+"""'}"""
+            let json = JsonConvert.SerializeObject(ReTweetMsg(id, username))
             makeRequest "/reTweet" "POST" json |> ignore
     
 
     let login = 
-        let json = """{'username':'"""+username+"""'}"""
+        let json = JsonConvert.SerializeObject(UsernameMsg(username))
         // makeRequest "/login" "PUT" json |> ignore
         openTweetSocket |> Async.RunSynchronously
         let byteData =
@@ -74,7 +75,7 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
         // 25% chance to toggle period of disconnectivity
         async{
             if rand.NextDouble() <= 0.1 then
-                let json = """{'username':'"""+username+"""'}"""
+                let json = JsonConvert.SerializeObject(UsernameMsg(username))
                 makeRequest "/logout" "PUT" json |> ignore
                 do! Async.Sleep (rand.Next(2500)) // disconnect for up to 2.5 seconds
                 makeRequest "/login" "PUT" json |> ignore

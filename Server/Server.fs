@@ -34,7 +34,6 @@ let JSON v =
   >=> Writers.setMimeType "application/json; charset=utf-8"
 
 let fromJson<'a> json =
-  printfn "%s" json
   JsonConvert.DeserializeObject(json, typeof<'a>) :?> 'a
 
 let getResourceFromReq<'a> (req : HttpRequest) =
@@ -68,14 +67,14 @@ let ws (webSocket : WebSocket) =
         | ReceiveTweet (tweet: TweetData) ->
           let byteResponse = stringToByteSeg (JsonConvert.SerializeObject tweet)
           webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
-        |_-> ()
-          
         
         | RequestLogin username ->
           serverActor <! Login username
           let response = sprintf "You are now logged in as %s!" username
           let byteResponse = stringToByteSeg response
           webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
+
+        |_-> ()
     })
 
     socket {
