@@ -60,6 +60,8 @@ let createSubscriberTable =
         new DataColumn("SUBSCRIBER", System.Type.GetType("System.String")); // username of subscriber
         |]
     subscriberData.Columns.AddRange(cols)
+    let (constrCols: DataColumn[]) = [|subscriberData.Columns.["USER"]; subscriberData.Columns.["SUBSCRIBER"]|]
+    subscriberData.Constraints.Add(UniqueConstraint(constrCols))
     subscriberData
  
 

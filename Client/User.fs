@@ -16,6 +16,10 @@ open System.Text
 
 open Newtonsoft.Json
 
+
+let fromJson<'a> json =
+  JsonConvert.DeserializeObject(json, typeof<'a>) :?> 'a
+
 let rand = Random()
 
 let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTweets: int) (mailbox : Actor<UserMsg>) = 
@@ -26,12 +30,6 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
     let openTweetSocket =
         async{
             do! Async.AwaitTask (ws.ConnectAsync(wsUri, CancellationToken.None))
-        }
-
-
-    let closeTweetSocket =
-        async{
-            do! Async.AwaitTask (ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "OK", CancellationToken.None))
         }
 
 
@@ -54,6 +52,7 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
 
     let viewTweet (id: int) (tweet: string) (user: string) =
         // retweet viewed tweet 13% of the time
+        // printfn "New Tweet: %s" tweet
         if rand.NextDouble() <= 0.13 then
             let json = JsonConvert.SerializeObject(ReTweetMsg(id, username))
             makeRequest "/reTweet" "POST" json |> ignore
@@ -96,7 +95,11 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
                 let buff = ArraySegment<byte>(Array.zeroCreate 1028)
                 let result = ws.ReceiveAsync(buff, CancellationToken.None).Result
                 contents <- Encoding.UTF8.GetString(buff.Array, 0, result.Count)
-                // Console.WriteLine("Socket Message: {0}",contents)     
+                try 
+                    let data = contents |> fromJson<ReceiveTweetMsg>
+                    viewTweet data.id data.tweet data.user
+                with
+                |_->()    
             return! loop()
         }
     loop()

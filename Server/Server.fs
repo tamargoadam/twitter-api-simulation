@@ -23,6 +23,7 @@ open Newtonsoft.Json
 open Suave.Sockets
 open Suave.Sockets.Control
 open Suave.WebSocket
+open Suave.ServerErrors
 
 
 // JSON serializing and deserializing functions
@@ -129,6 +130,7 @@ let app : WebPart =
               let res = serverActor <? GetTweetsSubscribedTo username |> Async.RunSynchronously
               match res with
               | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+              |_-> INTERNAL_ERROR "Failed to recieve query."
             | Choice2Of2 msg -> BAD_REQUEST msg
           );
         path "/tweets/byMentioned" >=> request (
@@ -138,6 +140,7 @@ let app : WebPart =
               let res = serverActor <? GetTweetsByMention username |> Async.RunSynchronously
               match res with
               | QueryTweets (tweets: TweetsMsg) -> JSON tweets  
+              |_-> INTERNAL_ERROR "Failed to recieve query."
             | Choice2Of2 msg -> BAD_REQUEST msg
           );
         path "/tweets/byHashtag" >=> request (
@@ -146,7 +149,8 @@ let app : WebPart =
             | Choice1Of2 username -> 
               let res = serverActor <? GetTweetsByHashtag username |> Async.RunSynchronously
               match res with
-              | QueryTweets (tweets: TweetsMsg) -> JSON tweets  
+              | QueryTweets (tweets: TweetsMsg) -> JSON tweets
+              |_-> INTERNAL_ERROR "Failed to recieve query."
             | Choice2Of2 msg -> BAD_REQUEST msg
           );
         path "/statistics" >=> request (
@@ -154,7 +158,7 @@ let app : WebPart =
             let res = serverActor <? GetStatistics |> Async.RunSynchronously
             match res with
             | RecieveStatistics (stats: StatsMsg) -> JSON stats  
-            |_-> BAD_REQUEST ""
+            |_-> INTERNAL_ERROR "Failed to receive server statistics."
           );
       ]
     POST >=> 
@@ -162,32 +166,42 @@ let app : WebPart =
         path "/register" >=> request (
           fun x ->
             let data = getResourceFromReq<UsernameMsg> x
-            serverActor <! RegisterUser data.username
-            OK "You have been registered."
+            let res = serverActor <? RegisterUser data.username |> Async.RunSynchronously
+            match res with
+            | ReqSuccess -> OK "You have been registered."
+            |_-> CONFLICT "Registration failed."
           );
         path "/postTweet" >=> request (
           fun x ->
             let data = getResourceFromReq<TweetMsg> x
-            serverActor <! PostTweet (data.tweet, data.user)
-            OK "Your tweet has been posted."
+            let res = serverActor <? PostTweet (data.tweet, data.user) |> Async.RunSynchronously
+            match res with
+            | ReqSuccess -> OK "Your tweet has been posted."
+            |_-> CONFLICT "Posting failed."
           );
         path "/subscribeTo" >=> request (
           fun x ->
             let data = getResourceFromReq<SubscribeMsg> x
-            serverActor <! SubscribeTo (data.subTo, data.user)
-            OK ("You are now subscribed to "+data.subTo+".")
+            let res = serverActor <? SubscribeTo (data.subTo, data.user) |> Async.RunSynchronously
+            match res with
+            | ReqSuccess -> OK ("You are now subscribed to "+data.subTo+".")
+            |_-> CONFLICT ("Could not subscribe to user, "+data.subTo+".")
           );
         path "/reTweet" >=> request (
           fun x ->
             let data = getResourceFromReq<ReTweetMsg> x
-            serverActor <! ReTweet (data.origId, data.user)
-            OK ("Your retweet has been posted.")
+            let res = serverActor <? ReTweet (data.origId, data.user) |> Async.RunSynchronously
+            match res with
+            | ReqSuccess -> OK "Your retweet has been posted."
+            |_-> CONFLICT "Your retweet could not be posted."
           );
           path "/simulate/initSubs" >=> request (
           fun x ->
             let data = getResourceFromReq<SimInitSubsMsg> x
-            serverActor <! SimulateSetInitialSubs (data.username, data.numSubs)
-            OK ("Subscriber simulation initialized.")
+            let res = serverActor <? SimulateSetInitialSubs (data.username, data.numSubs) |> Async.RunSynchronously
+            match res with
+            | ReqSuccess -> OK "Subscriber simulation initialized."
+            |_-> CONFLICT "Could not properly initialize subscriber simulation."
           );
       ]
     PUT >=>
@@ -195,8 +209,10 @@ let app : WebPart =
         path "/logout" >=> request (
           fun x ->
             let data = getResourceFromReq<UsernameMsg> x
-            serverActor <! Logout data.username
-            OK "You have been logged out."
+            let res = serverActor <? Logout data.username |> Async.RunSynchronously
+            match res with
+            | ReqSuccess -> OK "You have been logged out."
+            |_-> CONFLICT "You could not be logged out properly."
           );
       ]
     NOT_FOUND "Found no handlers." 

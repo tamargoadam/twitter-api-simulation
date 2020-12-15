@@ -201,7 +201,7 @@
     };
     xhttp.open("POST", httpBaseUri+"reTweet", true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
-    xhttp.send( JSON.stringify({orgId: document.getElementById('reTweet').value, user: document.getElementById('username').value}));
+    xhttp.send( JSON.stringify({origId: document.getElementById('reTweet').value, user: document.getElementById('username').value}));
   }
 
   function byMention(){
@@ -211,7 +211,7 @@
         writeToScreen(xhttp.responseText)
       }
     };
-    xhttp.open("GET", httpBaseUri+"tweets/byMentioned", true);
+    xhttp.open("GET", httpBaseUri+"tweets/byMentioned?username="+document.getElementById('query').value, true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
     xhttp.send(JSON.stringify({username: document.getElementById('query').value}));
   }
@@ -223,7 +223,7 @@
         writeToScreen(xhttp.responseText)
       }
     };
-    xhttp.open("GET", httpBaseUri+"tweets/byHashtag", true);
+    xhttp.open("GET", httpBaseUri+"tweets/byHashtag?tag="+document.getElementById('query').value, true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
     xhttp.send( JSON.stringify({tag: document.getElementById('query').value}));
   }
