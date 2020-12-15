@@ -1,11 +1,20 @@
 # Twitter API Simulation
 
-An implementation of a Twitter Clone and a client simulator. Powered by [Akka](https://getakka.net/).
+An implementation of a Twitter Clone and a client simulator. Actor model powered by [Akka](https://getakka.net/). HTTP/WebSocket server powered by [Suave.io](https://suave.io/).
 
-##### Command to run: 
-`dotnet run <num_users>`
+### Scaffolds
 
-##### API supports the following requests:
+#### `/`
+
+  ##### `client/`
+  [Client](/client#client) is a simulator for active client-side users.
+  Users are spawned, make requests, and process messages recieved via websocket concurrently with use of Akka's actor system.
+
+  ##### `server/`
+
+  [Server](/server#server) is the REST API and WebSocket server that powers the backend.
+
+### API supports the following requests:
 - Log in/out
 - Tweet
 - Register user
@@ -13,7 +22,7 @@ An implementation of a Twitter Clone and a client simulator. Powered by [Akka](h
 - Subscribe to user
 - Query tweets by subscribed to, hashtag, or mentions
 
-##### Client simulator functionality:
+### Client simulator functionality:
 - Simulates requested number of users
 - Each user has a number of subscribers randomly sampled from a Zipf distribution
 - Users tweet proportional to the number of subscribers they have (~numSubscribers/10)
