@@ -52,7 +52,6 @@ let twitterUser (username: string) (numUsers: int) (numSubscribers: int) (numTwe
 
     let viewTweet (id: int) (tweet: string) (user: string) =
         // retweet viewed tweet 13% of the time
-        // printfn "New Tweet: %s" tweet
         if rand.NextDouble() <= 0.13 then
             let json = JsonConvert.SerializeObject(ReTweetMsg(id, username))
             makeRequest "/reTweet" "POST" json |> ignore

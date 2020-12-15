@@ -70,7 +70,7 @@ let ws (webSocket : WebSocket) =
           webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
         
         | RequestLogin username ->
-          let res = serverActor <? Login username |> Async.RunSynchronously
+          let res = serverActor <? Login(username, mailbox.Context.Self) |> Async.RunSynchronously
           match res with
             | ReqSuccess -> 
               let response = sprintf "You are now logged in as %s." username

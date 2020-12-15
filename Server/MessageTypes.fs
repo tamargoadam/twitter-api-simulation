@@ -1,4 +1,5 @@
 module MessageTypes
+open Akka.Actor
 
 
 // Message type deffinitions for serialization
@@ -29,7 +30,7 @@ type StatsMsg(numTweets: int, timeProcessing: float) =
 
 // server message types
 type ServerMsg = 
-    | Login of string
+    | Login of string * IActorRef
     | Logout of string
     | PostTweet of string * string
     | SubscribeTo of string * string

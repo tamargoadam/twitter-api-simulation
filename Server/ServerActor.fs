@@ -35,6 +35,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let userRow = twitterData.Tables.["USERS"].Select(expression)
         userRow.[0].["CONNECTED"] <- true
         userRow.[0].["ADDRESS"] <- addr
+        System.Console.WriteLine("login addr {0}", addr)
         ReqSuccess
 
 
@@ -108,6 +109,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             let userExpression =  "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
             userRows <- Array.append userRows (twitterData.Tables.["USERS"].Select(userExpression))
         for row in userRows do
+            System.Console.WriteLine(row.["ADDRESS"])
             (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet (TweetData(id, tweet, user))
 
 
@@ -218,6 +220,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
 
     let getStats =
+        printfn "numTweets: %i" numTweetsProcessed
         RecieveStatistics (StatsMsg(numTweetsProcessed, timeProcessing))
 
 
@@ -229,7 +232,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
 
             try
                 match msg with
-                | Login user -> sender <! makeUserOnline (user, sender)
+                | Login (user, addr) -> sender <! makeUserOnline (user, addr)
                 | Logout user -> sender <! makeUserOffline user
                 | PostTweet (tweet, user) -> sender <! processTweet (-1, tweet, user)
                 | SubscribeTo (subTo, user) -> sender <! addSubscReq (user, subTo)  
