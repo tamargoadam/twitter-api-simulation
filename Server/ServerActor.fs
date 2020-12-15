@@ -35,7 +35,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let userRow = twitterData.Tables.["USERS"].Select(expression)
         userRow.[0].["CONNECTED"] <- true
         userRow.[0].["ADDRESS"] <- addr
-        System.Console.WriteLine("login addr {0}", addr)
         ReqSuccess
 
 
@@ -46,13 +45,30 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         ReqSuccess
 
 
-    let registerUser (userName: string) = 
-        let row = twitterData.Tables.["USERS"].NewRow()
-        row.["USERNAME"] <- userName
-        row.["CONNECTED"] <- false
+    let addSubsc(subscriber: string, user: string) = 
+        let row = twitterData.Tables.["SUBSCRIBERS"].NewRow()
+        row.["USER"] <- user
+        row.["SUBSCRIBER"] <- subscriber
 
-        twitterData.Tables.["USERS"].Rows.Add(row)
+        twitterData.Tables.["SUBSCRIBERS"].Rows.Add(row)
+
+
+    let addSubscReq(subscriber: string, user: string) = 
+        addSubsc(subscriber, user)
         ReqSuccess
+
+
+    let registerUser (userName: string) = 
+        if userName.Length > 0 then
+            let row = twitterData.Tables.["USERS"].NewRow()
+            row.["USERNAME"] <- userName
+            row.["CONNECTED"] <- false
+
+            twitterData.Tables.["USERS"].Rows.Add(row)
+            addSubsc(userName, userName)
+            ReqSuccess
+        else
+            ReqFailure
 
 
     let addHashtags(input: string, id: int) =
@@ -109,7 +125,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             let userExpression =  "USERNAME = '" + row.["SUBSCRIBER"].ToString() + "' AND CONNECTED"
             userRows <- Array.append userRows (twitterData.Tables.["USERS"].Select(userExpression))
         for row in userRows do
-            System.Console.WriteLine(row.["ADDRESS"])
             (row.["ADDRESS"] :?> IActorRef) <! ReceiveTweet (TweetData(id, tweet, user))
 
 
@@ -124,15 +139,14 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         let mutable tweet = t
         if rtId <> -1 then
             tweet <- twitterData.Tables.["TWEETS"].Select("ID = '" + rtId.ToString() + "'").[0].["TWEET"] :?> string
+            if not (tweet.StartsWith("RT: ")) then
+                tweet <- "RT: " + tweet
 
         let row = twitterData.Tables.["TWEETS"].NewRow()
         row.["ID"] <- tweetId
         row.["TWEET"] <- tweet
         row.["USER"] <- user
         row.["RT_ID"] <- rtId
-
-        if rtId = -1 && not (tweet.StartsWith("RT: ")) then
-            row.["TWEET"] <- "RT: " + tweet
 
         twitterData.Tables.["TWEETS"].Rows.Add(row)
 
@@ -145,19 +159,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         timeProcessing <- timeProcessing + stopWatch.Elapsed.TotalMilliseconds
 
         numTweetsProcessed <- numTweetsProcessed + 1
-        ReqSuccess
-
-
-    let addSubsc(subscriber: string, user: string) = 
-        let row = twitterData.Tables.["SUBSCRIBERS"].NewRow()
-        row.["USER"] <- user
-        row.["SUBSCRIBER"] <- subscriber
-
-        twitterData.Tables.["SUBSCRIBERS"].Rows.Add(row)
-
-
-    let addSubscReq(subscriber: string, user: string) = 
-        addSubsc(subscriber, user)
         ReqSuccess
 
 
@@ -219,11 +220,6 @@ let serverActor (mailbox : Actor<ServerMsg>)=
         ReqSuccess
 
 
-    let getStats =
-        printfn "numTweets: %i" numTweetsProcessed
-        RecieveStatistics (StatsMsg(numTweetsProcessed, timeProcessing))
-
-
     // Actor loop
     let rec loop () = 
         actor {
@@ -242,7 +238,7 @@ let serverActor (mailbox : Actor<ServerMsg>)=
                 | GetTweetsByMention user -> sender <! getMentionedTweet user
                 | GetTweetsByHashtag hashtag -> sender <! getTweetsWithHashtags hashtag
                 | SimulateSetInitialSubs (numSubs, user) -> sender <! setInitialSubs numSubs user
-                | GetStatistics -> sender <! getStats
+                | GetStatistics -> sender <! RecieveStatistics (StatsMsg(numTweetsProcessed, timeProcessing))
             with
             |_-> sender <! ReqFailure
 

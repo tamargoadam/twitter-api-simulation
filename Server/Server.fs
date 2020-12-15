@@ -131,7 +131,7 @@ let app : WebPart =
     path "/tweets/stream" >=> handShake wsWithErrorHandling
     GET >=> 
       choose [ 
-        path "/" >=> file "index.html"; browseHome
+        path "/" >=> file "index.html";
         path "/tweets/subscribedTo" >=> request (
           fun x ->
             match x.queryParam "username" with  

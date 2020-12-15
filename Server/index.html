@@ -91,7 +91,6 @@
   {
     output = document.getElementById("output");
     connectionBtn = document.getElementById("connection");
-    registerBtn = documetn.getElementById("register")
   }
 
   function toggleConnection()
@@ -117,6 +116,7 @@
   {
     writeToScreen('<span style="color: green;">CONNECTED</span>');
     websocket.send(JSON.stringify({username: document.getElementById('username').value}));
+    sessionStorage.username = document.getElementById('username').value
   }
 
   function onClose(evt)
@@ -159,7 +159,8 @@
     };
     xhttp.open("PUT", httpBaseUri+"logout", true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
-    xhttp.send(JSON.stringify({username: document.getElementById('username').value}));
+    xhttp.send(JSON.stringify({username: sessionStorage.username}));
+    sessionStorage.username = ""
   }
 
   function subReq(){
@@ -171,31 +172,21 @@
     };
     xhttp.open("POST", httpBaseUri+"subscribeTo", true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
-    xhttp.send(JSON.stringify({subTo: document.getElementById('subTo').value, user:document.getElementById('username').value}));
+    xhttp.send(JSON.stringify({subTo: document.getElementById('subTo').value, user:sessionStorage.username}));
   }
 
   function postReq(){
     var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function() {
-      if (this.readyState == 4 && this.status == 200) {
-        writeToScreen("You said: "+document.getElementById('tweet').value)
-      }
-    };
     xhttp.open("POST", httpBaseUri+"postTweet", true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
-    xhttp.send( JSON.stringify({tweet: document.getElementById('tweet').value, user: document.getElementById('username').value}));
+    xhttp.send( JSON.stringify({tweet: document.getElementById('tweet').value, user: sessionStorage.username}));
   }
 
   function rePostReq(){
     var xhttp = new XMLHttpRequest();
-    xhttp.onreadystatechange = function() {
-      if (this.readyState == 4 && this.status == 200) {
-        writeToScreen(xhttp.responseText)
-      }
-    };
     xhttp.open("POST", httpBaseUri+"reTweet", true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
-    xhttp.send( JSON.stringify({origId: document.getElementById('reTweet').value, user: document.getElementById('username').value}));
+    xhttp.send( JSON.stringify({origId: document.getElementById('reTweet').value, user: sessionStorage.username}));
   }
 
   function byMention(){
@@ -229,7 +220,7 @@
         writeToScreen(xhttp.responseText)
       }
     };
-    xhttp.open("GET", httpBaseUri+"tweets/subscribedTo?username="+document.getElementById('username').value, true);
+    xhttp.open("GET", httpBaseUri+"tweets/subscribedTo?username="+sessionStorage.username, true);
     xhttp.setRequestHeader("Content-type", "application/json;charset=UTF-8");
     xhttp.send();
   }
