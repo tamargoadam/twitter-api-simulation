@@ -122,11 +122,8 @@ let serverActor (mailbox : Actor<ServerMsg>)=
             tweetId <- rand.Next(System.Int32.MaxValue)
         // if rt, find origional
         let mutable tweet = t
-        printfn "rtid %i" rtId
         if rtId <> -1 then
-            printfn "rtid2 %i" rtId
             tweet <- twitterData.Tables.["TWEETS"].Select("ID = '" + rtId.ToString() + "'").[0].["TWEET"] :?> string
-            printfn "%s" tweet
 
         let row = twitterData.Tables.["TWEETS"].NewRow()
         row.["ID"] <- tweetId
