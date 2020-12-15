@@ -60,8 +60,8 @@ let ws (webSocket : WebSocket) =
       index <- rand.Next(System.Int32.MaxValue)
     socketIntexSet.Add(index) |> ignore
     let inbox = spawn system ("ws"+index.ToString()) (fun (mailbox : Actor<UserMsg>) -> actor {
-      let close = ref false
-      while not !close do
+      let mutable close = false
+      while not close do
         
         let! msg = mailbox.Receive()
         match msg with
@@ -70,10 +70,19 @@ let ws (webSocket : WebSocket) =
           webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
         
         | RequestLogin username ->
-          serverActor <! Login username
-          let response = sprintf "You are now logged in as %s!" username
-          let byteResponse = stringToByteSeg response
-          webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
+          let res = serverActor <? Login username |> Async.RunSynchronously
+          match res with
+            | ReqSuccess -> 
+              let response = sprintf "You are now logged in as %s." username
+              let byteResponse = stringToByteSeg response
+              webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
+            |_-> 
+              let response = sprintf "You could not be logged in as %s." username
+              let byteResponse = stringToByteSeg response
+              webSocket.send Text byteResponse true |> Async.RunSynchronously |> ignore
+              let emptyResponse = [||] |> ByteSegment
+              webSocket.send Close emptyResponse true |> Async.RunSynchronously |> ignore
+              close <- true
 
         |_-> ()
     })

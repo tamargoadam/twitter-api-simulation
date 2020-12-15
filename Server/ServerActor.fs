@@ -33,17 +33,15 @@ let serverActor (mailbox : Actor<ServerMsg>)=
     let makeUserOnline (userName: string, addr: IActorRef) = 
         let expression = "USERNAME = '" + userName + "'"
         let userRow = twitterData.Tables.["USERS"].Select(expression)
-        if userRow.Length > 0 then
-            userRow.[0].["CONNECTED"] <- true
-            userRow.[0].["ADDRESS"] <- addr
+        userRow.[0].["CONNECTED"] <- true
+        userRow.[0].["ADDRESS"] <- addr
         ReqSuccess
 
 
     let makeUserOffline (userName: string) = 
         let expression = "USERNAME = '" + userName + "'"
         let userRow = twitterData.Tables.["USERS"].Select(expression)
-        if userRow.Length > 0 then
-            userRow.[0].["CONNECTED"] <- false
+        userRow.[0].["CONNECTED"] <- false
         ReqSuccess
 
 

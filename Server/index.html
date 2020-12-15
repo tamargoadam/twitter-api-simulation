@@ -111,7 +111,6 @@
     websocket.onopen = function(evt) { onOpen(evt) };
     websocket.onclose = function(evt) { onClose(evt) };
     websocket.onmessage = function(evt) { onMessage(evt) };
-    websocket.onerror = function(evt) { onError(evt) };
   }
 
   function onOpen(evt)
@@ -129,11 +128,6 @@
   function onMessage(evt)
   {
     writeToScreen(evt.data);
-  }
-
-  function onError(evt)
-  {
-    writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
   }
 
   function writeToScreen(message)
