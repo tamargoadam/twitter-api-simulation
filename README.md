@@ -7,12 +7,12 @@ An implementation of a Twitter Clone and a client simulator. Actor model powered
 #### `/`
 
   ##### `client/`
-  [Client](/client#client) is a simulator for active client-side users.
+  [Client](/Client#Client) is a simulator for active client-side users.
   Users are spawned, make requests, and process messages recieved via websocket concurrently with use of Akka's actor system.
 
   ##### `server/`
 
-  [Server](/server#server) is the REST API and WebSocket server that powers the backend.
+  [Server](/Server#Server) is the REST API and WebSocket server that powers the backend.
 
 ### API supports the following requests:
 - Log in/out
